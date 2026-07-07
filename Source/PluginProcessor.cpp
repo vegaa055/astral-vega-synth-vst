@@ -24,6 +24,23 @@ AstralVegaAudioProcessor::AstralVegaAudioProcessor()
     cutoffParam     = apvts.getRawParameterValue ("filterCutoff");
     resonanceParam  = apvts.getRawParameterValue ("filterRes");
     gainParam       = apvts.getRawParameterValue ("gain");
+
+    lfo1ShapeParam   = apvts.getRawParameterValue ("lfo1Shape");
+    lfo1RateParam    = apvts.getRawParameterValue ("lfo1Rate");
+    lfo2ShapeParam   = apvts.getRawParameterValue ("lfo2Shape");
+    lfo2RateParam    = apvts.getRawParameterValue ("lfo2Rate");
+    env2AttackParam  = apvts.getRawParameterValue ("env2Attack");
+    env2DecayParam   = apvts.getRawParameterValue ("env2Decay");
+    env2SustainParam = apvts.getRawParameterValue ("env2Sustain");
+    env2ReleaseParam = apvts.getRawParameterValue ("env2Release");
+
+    for (int s = 0; s < SynthVoice::numModSlots; ++s)
+    {
+        const auto prefix = "mod" + juce::String (s + 1);
+        modSrcParams[s] = apvts.getRawParameterValue (prefix + "Src");
+        modDstParams[s] = apvts.getRawParameterValue (prefix + "Dst");
+        modAmtParams[s] = apvts.getRawParameterValue (prefix + "Amt");
+    }
 }
 
 void AstralVegaAudioProcessor::wireOscParams (OscParamRefs& refs, const juce::String& idPrefix)
@@ -115,6 +132,57 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
         juce::ParameterID { "gain", 1 }, "Gain",
         juce::NormalisableRange<float> (-60.0f, 6.0f), -6.0f));
 
+    const juce::StringArray lfoShapes { "Sine", "Triangle", "Saw Down", "Square", "S&H" };
+
+    const auto addLfo = [&layout, &lfoShapes] (const juce::String& idPrefix, const juce::String& name)
+    {
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { idPrefix + "Shape", 1 }, name + " Shape", lfoShapes, 0));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { idPrefix + "Rate", 1 }, name + " Rate",
+            juce::NormalisableRange<float> (0.02f, 20.0f, 0.0f, 0.4f), 2.0f));
+    };
+
+    addLfo ("lfo1", "LFO 1");
+    addLfo ("lfo2", "LFO 2");
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "env2Attack", 1 }, "Env 2 Attack",
+        juce::NormalisableRange<float> (0.001f, 5.0f, 0.0f, 0.35f), 0.01f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "env2Decay", 1 }, "Env 2 Decay",
+        juce::NormalisableRange<float> (0.001f, 5.0f, 0.0f, 0.35f), 0.3f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "env2Sustain", 1 }, "Env 2 Sustain",
+        juce::NormalisableRange<float> (0.0f, 1.0f), 0.5f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "env2Release", 1 }, "Env 2 Release",
+        juce::NormalisableRange<float> (0.001f, 8.0f, 0.0f, 0.35f), 0.3f));
+
+    const juce::StringArray modSources { "None", "LFO 1", "LFO 2", "Env 2", "Velocity", "Mod Wheel" };
+    const juce::StringArray modTargets { "None", "Osc A Pos", "Osc B Pos", "Osc A Level",
+                                         "Osc B Level", "Pitch", "Cutoff", "Resonance" };
+
+    for (int s = 1; s <= SynthVoice::numModSlots; ++s)
+    {
+        const auto prefix = "mod" + juce::String (s);
+        const auto name = "Mod " + juce::String (s);
+
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { prefix + "Src", 1 }, name + " Source", modSources, 0));
+
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { prefix + "Dst", 1 }, name + " Target", modTargets, 0));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { prefix + "Amt", 1 }, name + " Amount",
+            juce::NormalisableRange<float> (-1.0f, 1.0f), 0.0f));
+    }
+
     return layout;
 }
 
@@ -151,6 +219,47 @@ bool AstralVegaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layout
         || mainOut == juce::AudioChannelSet::stereo();
 }
 
+SynthVoice::BlockParams AstralVegaAudioProcessor::makeBlockParams() const
+{
+    SynthVoice::BlockParams bp;
+
+    bp.oscA = makeOscParams (oscARefs);
+    bp.oscB = makeOscParams (oscBRefs);
+
+    bp.subOctavesDown = 1 + (int) subOctaveParam->load();
+    bp.subLevel = subLevelParam->load();
+    bp.noiseLevel = noiseLevelParam->load();
+
+    bp.attack = attackParam->load();
+    bp.decay = decayParam->load();
+    bp.sustain = sustainParam->load();
+    bp.release = releaseParam->load();
+
+    bp.env2Attack = env2AttackParam->load();
+    bp.env2Decay = env2DecayParam->load();
+    bp.env2Sustain = env2SustainParam->load();
+    bp.env2Release = env2ReleaseParam->load();
+
+    bp.cutoffHz = cutoffParam->load();
+    bp.resonance = resonanceParam->load();
+
+    bp.lfo1Shape = (int) lfo1ShapeParam->load();
+    bp.lfo1Rate = lfo1RateParam->load();
+    bp.lfo2Shape = (int) lfo2ShapeParam->load();
+    bp.lfo2Rate = lfo2RateParam->load();
+
+    for (int s = 0; s < SynthVoice::numModSlots; ++s)
+    {
+        bp.routings[s].source = (int) modSrcParams[s]->load();
+        bp.routings[s].target = (int) modDstParams[s]->load();
+        bp.routings[s].amount = modAmtParams[s]->load();
+    }
+
+    bp.modWheel = modWheelValue;
+
+    return bp;
+}
+
 void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                              juce::MidiBuffer& midiMessages)
 {
@@ -161,17 +270,19 @@ void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Merge events from the on-screen keyboard into the incoming MIDI stream
     keyboardState.processNextMidiBuffer (midiMessages, 0, buffer.getNumSamples(), true);
 
-    const auto oscAParams = makeOscParams (oscARefs);
-    const auto oscBParams = makeOscParams (oscBRefs);
-    const int subOctavesDown = 1 + (int) subOctaveParam->load();
+    for (const auto metadata : midiMessages)
+    {
+        const auto msg = metadata.getMessage();
+
+        if (msg.isController() && msg.getControllerNumber() == 1)
+            modWheelValue = (float) msg.getControllerValue() / 127.0f;
+    }
+
+    const auto blockParams = makeBlockParams();
 
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<SynthVoice*> (synth.getVoice (i)))
-            voice->setParameters (oscAParams, oscBParams,
-                                  subOctavesDown, subLevelParam->load(), noiseLevelParam->load(),
-                                  attackParam->load(), decayParam->load(),
-                                  sustainParam->load(), releaseParam->load(),
-                                  cutoffParam->load(), resonanceParam->load());
+            voice->setParameters (blockParams);
 
     synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
 

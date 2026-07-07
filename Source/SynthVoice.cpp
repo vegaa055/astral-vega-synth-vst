@@ -5,11 +5,11 @@
 
 void SynthVoice::OscSection::reset (double sampleRate)
 {
-    position.reset (sampleRate, 0.05);
-    level.reset (sampleRate, 0.02);
+    position.reset (sampleRate, 0.01);
+    level.reset (sampleRate, 0.01);
 }
 
-void SynthVoice::OscSection::applyParams (const OscParams& p, float noteHz, double sampleRate)
+void SynthVoice::OscSection::applyParams (const OscParams& p, float effectiveHz, double sampleRate)
 {
     if (p.table != table)
     {
@@ -17,9 +17,6 @@ void SynthVoice::OscSection::applyParams (const OscParams& p, float noteHz, doub
         for (auto& osc : oscs)
             osc.setTable (table);
     }
-
-    position.setTargetValue (p.position);
-    level.setTargetValue (p.level);
 
     const int newUnison = juce::jlimit (1, maxUnison, p.unisonCount);
     const bool tuningChanged = newUnison != numUnison
@@ -32,16 +29,16 @@ void SynthVoice::OscSection::applyParams (const OscParams& p, float noteHz, doub
     detune = p.detuneCents;
     spread = p.spread;
 
-    if (tuningChanged && noteHz > 0.0f)
-        updateTuning (noteHz, sampleRate);
+    if (tuningChanged && effectiveHz > 0.0f)
+        updateTuning (effectiveHz, sampleRate);
 }
 
-void SynthVoice::OscSection::updateTuning (float noteHz, double sampleRate)
+void SynthVoice::OscSection::updateFrequencies (float effectiveHz, double sampleRate)
 {
     if (sampleRate <= 0.0)
         return;
 
-    const float base = noteHz * std::exp2 ((float) coarse / 12.0f);
+    const float base = effectiveHz * std::exp2 ((float) coarse / 12.0f);
 
     for (int u = 0; u < numUnison; ++u)
     {
@@ -50,6 +47,16 @@ void SynthVoice::OscSection::updateTuning (float noteHz, double sampleRate)
                                : -1.0f + 2.0f * (float) u / (float) (numUnison - 1);
 
         oscs[u].setFrequency (base * std::exp2 (detune * offset / 1200.0f), sampleRate);
+    }
+}
+
+void SynthVoice::OscSection::updatePanGains()
+{
+    for (int u = 0; u < numUnison; ++u)
+    {
+        const float offset = numUnison == 1
+                               ? 0.0f
+                               : -1.0f + 2.0f * (float) u / (float) (numUnison - 1);
 
         // equal-power pan, unison voices fanned out by the spread amount
         const float angle = (offset * spread + 1.0f) * juce::MathConstants<float>::pi / 4.0f;
@@ -60,15 +67,22 @@ void SynthVoice::OscSection::updateTuning (float noteHz, double sampleRate)
     unisonNorm = 1.0f / std::sqrt ((float) numUnison);
 }
 
-void SynthVoice::OscSection::noteStart (float noteHz, double sampleRate, juce::Random& rng)
+void SynthVoice::OscSection::updateTuning (float effectiveHz, double sampleRate)
+{
+    updateFrequencies (effectiveHz, sampleRate);
+    updatePanGains();
+}
+
+void SynthVoice::OscSection::noteStart (const OscParams& p, float effectiveHz,
+                                        double sampleRate, juce::Random& rng)
 {
     // random start phases keep stacked unison voices from comb-filtering
     for (auto& osc : oscs)
         osc.setPhase (rng.nextFloat());
 
-    updateTuning (noteHz, sampleRate);
-    position.setCurrentAndTargetValue (position.getTargetValue());
-    level.setCurrentAndTargetValue (level.getTargetValue());
+    updateTuning (effectiveHz, sampleRate);
+    position.setCurrentAndTargetValue (p.position);
+    level.setCurrentAndTargetValue (p.level);
 }
 
 //==============================================================================
@@ -89,6 +103,9 @@ void SynthVoice::prepare (double sampleRate, int samplesPerBlock, int numOutputC
     filter.setType (juce::dsp::StateVariableTPTFilterType::lowpass);
 
     adsr.setSampleRate (sampleRate);
+    env2.setSampleRate (sampleRate);
+    lfo1.prepare (sampleRate);
+    lfo2.prepare (sampleRate);
 
     oscA.reset (sampleRate);
     oscB.reset (sampleRate);
@@ -100,33 +117,42 @@ void SynthVoice::prepare (double sampleRate, int samplesPerBlock, int numOutputC
     isPrepared = true;
 }
 
-void SynthVoice::setParameters (const OscParams& oscAParams, const OscParams& oscBParams,
-                                int subOctavesDown, float subLevel, float noiseLevel,
-                                float attack, float decay, float sustain, float release,
-                                float cutoffHz, float resonance)
+void SynthVoice::setParameters (const BlockParams& p)
 {
+    params = p;
+
     const auto sampleRate = getSampleRate();
+    const float effectiveHz = noteHz * pitchMul;
 
-    oscA.applyParams (oscAParams, noteHz, sampleRate);
-    oscB.applyParams (oscBParams, noteHz, sampleRate);
+    oscA.applyParams (p.oscA, effectiveHz, sampleRate);
+    oscB.applyParams (p.oscB, effectiveHz, sampleRate);
 
-    subLevelSmoothed.setTargetValue (subLevel);
-    noiseLevelSmoothed.setTargetValue (noiseLevel);
+    subLevelSmoothed.setTargetValue (p.subLevel);
+    noiseLevelSmoothed.setTargetValue (p.noiseLevel);
 
-    if (subOctavesDown != subOctave)
+    if (p.subOctavesDown != subOctave)
     {
-        subOctave = subOctavesDown;
+        subOctave = p.subOctavesDown;
         updateSubInc();
     }
 
-    adsrParams.attack = attack;
-    adsrParams.decay = decay;
-    adsrParams.sustain = sustain;
-    adsrParams.release = release;
+    lfo1.setParams (p.lfo1Shape, p.lfo1Rate);
+    lfo2.setParams (p.lfo2Shape, p.lfo2Rate);
+
+    adsrParams.attack = p.attack;
+    adsrParams.decay = p.decay;
+    adsrParams.sustain = p.sustain;
+    adsrParams.release = p.release;
     adsr.setParameters (adsrParams);
 
-    filter.setCutoffFrequency (cutoffHz);
-    filter.setResonance (resonance);
+    env2Params.attack = p.env2Attack;
+    env2Params.decay = p.env2Decay;
+    env2Params.sustain = p.env2Sustain;
+    env2Params.release = p.env2Release;
+    env2.setParameters (env2Params);
+
+    // cutoff/resonance and modulated targets are applied per control chunk
+    // in updateModulation()
 }
 
 void SynthVoice::updateSubInc()
@@ -134,34 +160,89 @@ void SynthVoice::updateSubInc()
     const auto sampleRate = getSampleRate();
 
     if (sampleRate > 0.0 && noteHz > 0.0f)
-        subInc = (float) (noteHz * std::exp2 ((float) -subOctave) / sampleRate);
+        subInc = (float) (noteHz * pitchMul * std::exp2 ((float) -subOctave) / sampleRate);
 }
 
 void SynthVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int)
 {
     noteHz = (float) juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
+    pitchMul = 1.0f;
+    currentPitchSemis = 0.0f;
+    velocity01 = velocity;
 
     const auto sampleRate = getSampleRate();
-    oscA.noteStart (noteHz, sampleRate, random);
-    oscB.noteStart (noteHz, sampleRate, random);
+    oscA.noteStart (params.oscA, noteHz, sampleRate, random);
+    oscB.noteStart (params.oscB, noteHz, sampleRate, random);
 
     subPhase = 0.0f;
     updateSubInc();
     subLevelSmoothed.setCurrentAndTargetValue (subLevelSmoothed.getTargetValue());
     noiseLevelSmoothed.setCurrentAndTargetValue (noiseLevelSmoothed.getTargetValue());
 
+    lfo1.noteOn (random);
+    lfo2.noteOn (random);
+
     filter.reset();
 
     level = 0.5f * velocity;
     adsr.noteOn();
+    env2.noteOn();
 }
 
 void SynthVoice::stopNote (float, bool allowTailOff)
 {
     adsr.noteOff();
+    env2.noteOff();
 
     if (! allowTailOff || ! adsr.isActive())
         clearCurrentNote();
+}
+
+void SynthVoice::updateModulation (int chunkSamples)
+{
+    float src[numModSources];
+    src[srcNone] = 0.0f;
+    src[srcLFO1] = lfo1.tick (chunkSamples, random);
+    src[srcLFO2] = lfo2.tick (chunkSamples, random);
+
+    float env2Value = 0.0f;
+    for (int k = 0; k < chunkSamples; ++k)
+        env2Value = env2.getNextSample();
+    src[srcEnv2] = env2Value;
+
+    src[srcVelocity] = velocity01;
+    src[srcModWheel] = params.modWheel;
+
+    float mod[numModTargets] {};
+
+    for (const auto& routing : params.routings)
+        if (routing.source != srcNone && routing.target != tgtNone)
+            mod[routing.target] += src[routing.source] * routing.amount;
+
+    oscA.position.setTargetValue (juce::jlimit (0.0f, 1.0f, params.oscA.position + mod[tgtOscAPos]));
+    oscB.position.setTargetValue (juce::jlimit (0.0f, 1.0f, params.oscB.position + mod[tgtOscBPos]));
+    oscA.level.setTargetValue (juce::jlimit (0.0f, 1.0f, params.oscA.level + mod[tgtOscALevel]));
+    oscB.level.setTargetValue (juce::jlimit (0.0f, 1.0f, params.oscB.level + mod[tgtOscBLevel]));
+
+    // full amount = +/- one octave
+    const float pitchSemis = mod[tgtPitch] * 12.0f;
+
+    if (! juce::approximatelyEqual (pitchSemis, currentPitchSemis))
+    {
+        currentPitchSemis = pitchSemis;
+        pitchMul = std::exp2 (pitchSemis / 12.0f);
+
+        const auto sampleRate = getSampleRate();
+        oscA.updateFrequencies (noteHz * pitchMul, sampleRate);
+        oscB.updateFrequencies (noteHz * pitchMul, sampleRate);
+        updateSubInc();
+    }
+
+    // full amount = +/- six octaves of cutoff sweep
+    filter.setCutoffFrequency (juce::jlimit (20.0f, 20000.0f,
+                                             params.cutoffHz * std::exp2 (mod[tgtCutoff] * 6.0f)));
+    filter.setResonance (juce::jlimit (0.5f, 8.0f,
+                                       params.resonance + mod[tgtResonance] * 7.5f));
 }
 
 void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer,
@@ -178,47 +259,61 @@ void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer,
     auto* left = voiceBuffer.getWritePointer (0);
     auto* right = voiceBuffer.getNumChannels() > 1 ? voiceBuffer.getWritePointer (1) : nullptr;
 
-    for (int i = 0; i < numSamples; ++i)
+    juce::dsp::AudioBlock<float> block (voiceBuffer);
+
+    int done = 0;
+
+    while (done < numSamples)
     {
-        float l = 0.0f, r = 0.0f;
+        const int chunk = juce::jmin (controlInterval, numSamples - done);
 
-        oscA.renderSample (l, r);
-        oscB.renderSample (l, r);
+        updateModulation (chunk);
 
-        const float subLev = subLevelSmoothed.getNextValue();
-
-        if (subLev > 0.0001f)
+        for (int i = done; i < done + chunk; ++i)
         {
-            const float s = std::sin (juce::MathConstants<float>::twoPi * subPhase) * subLev;
-            l += s;
-            r += s;
+            float l = 0.0f, r = 0.0f;
+
+            oscA.renderSample (l, r);
+            oscB.renderSample (l, r);
+
+            const float subLev = subLevelSmoothed.getNextValue();
+
+            if (subLev > 0.0001f)
+            {
+                const float s = std::sin (juce::MathConstants<float>::twoPi * subPhase) * subLev;
+                l += s;
+                r += s;
+            }
+
+            subPhase += subInc;
+            if (subPhase >= 1.0f)
+                subPhase -= 1.0f;
+
+            const float noiseLev = noiseLevelSmoothed.getNextValue();
+
+            if (noiseLev > 0.0001f)
+            {
+                l += (random.nextFloat() * 2.0f - 1.0f) * noiseLev;
+                r += (random.nextFloat() * 2.0f - 1.0f) * noiseLev;
+            }
+
+            if (right != nullptr)
+            {
+                left[i] = l;
+                right[i] = r;
+            }
+            else
+            {
+                left[i] = 0.5f * (l + r);
+            }
         }
 
-        subPhase += subInc;
-        if (subPhase >= 1.0f)
-            subPhase -= 1.0f;
+        auto chunkBlock = block.getSubBlock ((size_t) done, (size_t) chunk);
+        filter.process (juce::dsp::ProcessContextReplacing<float> (chunkBlock));
 
-        const float noiseLev = noiseLevelSmoothed.getNextValue();
-
-        if (noiseLev > 0.0001f)
-        {
-            l += (random.nextFloat() * 2.0f - 1.0f) * noiseLev;
-            r += (random.nextFloat() * 2.0f - 1.0f) * noiseLev;
-        }
-
-        if (right != nullptr)
-        {
-            left[i] = l;
-            right[i] = r;
-        }
-        else
-        {
-            left[i] = 0.5f * (l + r);
-        }
+        done += chunk;
     }
 
-    juce::dsp::AudioBlock<float> block (voiceBuffer);
-    filter.process (juce::dsp::ProcessContextReplacing<float> (block));
     adsr.applyEnvelopeToBuffer (voiceBuffer, 0, numSamples);
 
     for (int ch = 0; ch < outputBuffer.getNumChannels(); ++ch)

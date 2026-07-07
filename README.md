@@ -37,8 +37,12 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
       noise source, per-oscillator levels
 - [ ] **M2c — User wavetables**: import .wav wavetables (2048-sample frames,
       forward-FFT mipmapping), thread-safe table swapping
-- [ ] **M3 — Modulation**: 2 LFOs, 2 assignable envelopes, mod matrix
-      (drag-and-drop routing), velocity/mod-wheel sources
+- [x] **M3 — Modulation**: 2 poly LFOs (5 shapes, retriggered), assignable Env 2,
+      6-slot mod matrix (sources: LFOs/Env 2/velocity/mod wheel; targets: osc
+      positions/levels, pitch, cutoff, resonance), control-rate voice rendering
+      (32-sample chunks)
+- [ ] **M3b — Modulation extras**: tempo-synced LFO rates, global (free-running)
+      LFO mode, drag-and-drop routing in the custom UI (M8)
 - [ ] **M4 — Filter section**: LP/HP/BP morphing, filter drive, key tracking,
       envelope amount
 - [ ] **M5 — FX chain**: chorus, phaser, delay, reverb, distortion, bitcrusher,

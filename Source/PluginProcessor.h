@@ -50,6 +50,7 @@ private:
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void wireOscParams (OscParamRefs&, const juce::String& idPrefix);
     SynthVoice::OscParams makeOscParams (const OscParamRefs&) const;
+    SynthVoice::BlockParams makeBlockParams() const;
 
     std::vector<Wavetable> wavetables;
     juce::Synthesiser synth;
@@ -66,6 +67,21 @@ private:
     std::atomic<float>* cutoffParam = nullptr;
     std::atomic<float>* resonanceParam = nullptr;
     std::atomic<float>* gainParam = nullptr;
+
+    std::atomic<float>* lfo1ShapeParam = nullptr;
+    std::atomic<float>* lfo1RateParam = nullptr;
+    std::atomic<float>* lfo2ShapeParam = nullptr;
+    std::atomic<float>* lfo2RateParam = nullptr;
+    std::atomic<float>* env2AttackParam = nullptr;
+    std::atomic<float>* env2DecayParam = nullptr;
+    std::atomic<float>* env2SustainParam = nullptr;
+    std::atomic<float>* env2ReleaseParam = nullptr;
+
+    std::atomic<float>* modSrcParams[SynthVoice::numModSlots] {};
+    std::atomic<float>* modDstParams[SynthVoice::numModSlots] {};
+    std::atomic<float>* modAmtParams[SynthVoice::numModSlots] {};
+
+    float modWheelValue = 0.0f;
 
     static constexpr int numVoices = 16;
 
