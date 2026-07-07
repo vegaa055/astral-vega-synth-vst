@@ -4,6 +4,7 @@
 #include "SynthVoice.h"
 #include "AstralSynth.h"
 #include "FXChain.h"
+#include "PresetManager.h"
 
 class AstralVegaAudioProcessor : public juce::AudioProcessor
 {
@@ -36,6 +37,7 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;
+    PresetManager presetManager { apvts };
 
 private:
     struct OscParamRefs

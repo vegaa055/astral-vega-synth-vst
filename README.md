@@ -52,6 +52,7 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
 - [x] **M6 — Musts for the genres**: Poly/Mono/Legato voice modes with held-note
       stack, portamento glide (exponential, constant-time), pitch-bend range
       control (0–24 semis), pump effect on the master bus (sidechain feel)
-- [ ] **M7 — Presets**: preset browser, factory bank (synthwave leads/pads/basses,
-      hip-hop 808s/plucks/keys)
+- [x] **M7 — Presets**: header preset bar (prev/next/browse/save), 10 factory
+      presets defined in code as overrides-on-defaults, user presets as XML in
+      `Documents/Astral Vega/Presets`
 - [ ] **M8 — Custom UI**: full skinned interface, oscilloscope + spectrum display

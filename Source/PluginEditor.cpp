@@ -144,9 +144,66 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     sustainAttachment   = std::make_unique<SliderAttachment> (apvts, "sustain", sustainSlider);
     releaseAttachment   = std::make_unique<SliderAttachment> (apvts, "release", releaseSlider);
 
+    for (auto* c : { (juce::Component*) &prevPresetButton, (juce::Component*) &nextPresetButton,
+                     (juce::Component*) &savePresetButton, (juce::Component*) &presetBox })
+        addAndMakeVisible (*c);
+
+    refreshPresetBox();
+
+    presetBox.onChange = [this]
+    {
+        const int idx = presetBox.getSelectedItemIndex();
+
+        if (idx >= 0 && idx != processorRef.presetManager.getCurrentIndex())
+            processorRef.presetManager.loadPreset (idx);
+    };
+
+    prevPresetButton.onClick = [this]
+    {
+        processorRef.presetManager.loadPrevious();
+        refreshPresetBox();
+    };
+
+    nextPresetButton.onClick = [this]
+    {
+        processorRef.presetManager.loadNext();
+        refreshPresetBox();
+    };
+
+    savePresetButton.onClick = [this]
+    {
+        auto& manager = processorRef.presetManager;
+        const auto suggested = manager.getUserPresetDirectory()
+                                   .getChildFile (manager.getCurrentName() + ".xml");
+
+        fileChooser = std::make_unique<juce::FileChooser> ("Save preset", suggested, "*.xml");
+
+        fileChooser->launchAsync (juce::FileBrowserComponent::saveMode
+                                    | juce::FileBrowserComponent::canSelectFiles
+                                    | juce::FileBrowserComponent::warnAboutOverwriting,
+                                  [this] (const juce::FileChooser& fc)
+                                  {
+                                      const auto file = fc.getResult();
+
+                                      if (file == juce::File{})
+                                          return;
+
+                                      processorRef.presetManager.saveUserPreset (file);
+                                      refreshPresetBox();
+                                  });
+    };
+
     addAndMakeVisible (keyboard);
 
     setSize (1460, 760);
+}
+
+void AstralVegaAudioProcessorEditor::refreshPresetBox()
+{
+    presetBox.clear (juce::dontSendNotification);
+    presetBox.addItemList (processorRef.presetManager.getPresetNames(), 1);
+    presetBox.setSelectedItemIndex (processorRef.presetManager.getCurrentIndex(),
+                                    juce::dontSendNotification);
 }
 
 void AstralVegaAudioProcessorEditor::setupCombo (juce::ComboBox& box, juce::Label& label,
@@ -227,7 +284,8 @@ void AstralVegaAudioProcessorEditor::paint (juce::Graphics& g)
     auto titleArea = getLocalBounds().removeFromTop (48).toFloat();
     g.setColour (neonMagenta);
     g.setFont (juce::Font (juce::FontOptions (28.0f, juce::Font::bold)));
-    g.drawText ("ASTRAL VEGA", titleArea, juce::Justification::centred);
+    g.drawText ("ASTRAL VEGA", titleArea.withTrimmedLeft (24.0f),
+                juce::Justification::centredLeft);
 
     g.setColour (neonCyan.withAlpha (0.6f));
     g.drawLine (16.0f, titleArea.getBottom(),
@@ -239,7 +297,18 @@ void AstralVegaAudioProcessorEditor::resized()
     auto bounds = getLocalBounds().reduced (16);
 
     keyboard.setBounds (bounds.removeFromBottom (90));
-    bounds.removeFromTop (48); // title strip painted in paint()
+
+    // title strip: name painted on the left, preset bar on the right
+    auto titleStrip = bounds.removeFromTop (48);
+    auto presetArea = titleStrip.removeFromRight (480).reduced (0, 10);
+    prevPresetButton.setBounds (presetArea.removeFromLeft (30));
+    presetArea.removeFromLeft (4);
+    presetBox.setBounds (presetArea.removeFromLeft (300));
+    presetArea.removeFromLeft (4);
+    nextPresetButton.setBounds (presetArea.removeFromLeft (30));
+    presetArea.removeFromLeft (10);
+    savePresetButton.setBounds (presetArea);
+
     bounds.removeFromBottom (8);
 
     // left column: the synth engine; right column: modulation + FX rack

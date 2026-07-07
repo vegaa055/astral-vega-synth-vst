@@ -45,7 +45,14 @@ private:
     void setupOscRow (OscRowControls&, const juce::String& idPrefix, const juce::String& name);
     void setupModSlot (ModSlotControls&, int slotNumber);
 
+    void refreshPresetBox();
+
     AstralVegaAudioProcessor& processorRef;
+
+    juce::TextButton prevPresetButton { "<" }, nextPresetButton { ">" },
+                     savePresetButton { "Save" };
+    juce::ComboBox presetBox;
+    std::unique_ptr<juce::FileChooser> fileChooser;
 
     OscRowControls oscARow, oscBRow;
 
