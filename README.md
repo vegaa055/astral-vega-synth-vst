@@ -32,8 +32,11 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
 - [x] **M2a — Wavetable engine core**: band-limited mip-mapped wavetables (built via
       inverse FFT from spectral recipes), position morphing, unison up to 7 voices
       with detune + stereo spread, factory tables (Basic, PWM, Spectra)
-- [ ] **M2b — Full oscillator section**: 2nd wavetable oscillator, sub oscillator,
-      noise, per-osc mixer/pan, user wavetable import (.wav)
+- [x] **M2b — Full oscillator section**: 2nd wavetable oscillator with independent
+      table/position/coarse-tune/unison, sine sub oscillator (-1/-2 oct), white
+      noise source, per-oscillator levels
+- [ ] **M2c — User wavetables**: import .wav wavetables (2048-sample frames,
+      forward-FFT mipmapping), thread-safe table swapping
 - [ ] **M3 — Modulation**: 2 LFOs, 2 assignable envelopes, mod matrix
       (drag-and-drop routing), velocity/mod-wheel sources
 - [ ] **M4 — Filter section**: LP/HP/BP morphing, filter drive, key tracking,

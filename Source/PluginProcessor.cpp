@@ -11,42 +11,81 @@ AstralVegaAudioProcessor::AstralVegaAudioProcessor()
     for (int i = 0; i < numVoices; ++i)
         synth.addVoice (new SynthVoice());
 
-    oscTableParam  = apvts.getRawParameterValue ("oscTable");
-    oscPosParam    = apvts.getRawParameterValue ("oscPos");
-    unisonParam    = apvts.getRawParameterValue ("unison");
-    detuneParam    = apvts.getRawParameterValue ("detune");
-    spreadParam    = apvts.getRawParameterValue ("spread");
-    attackParam    = apvts.getRawParameterValue ("attack");
-    decayParam     = apvts.getRawParameterValue ("decay");
-    sustainParam   = apvts.getRawParameterValue ("sustain");
-    releaseParam   = apvts.getRawParameterValue ("release");
-    cutoffParam    = apvts.getRawParameterValue ("filterCutoff");
-    resonanceParam = apvts.getRawParameterValue ("filterRes");
-    gainParam      = apvts.getRawParameterValue ("gain");
+    wireOscParams (oscARefs, "oscA");
+    wireOscParams (oscBRefs, "oscB");
+
+    subOctaveParam  = apvts.getRawParameterValue ("subOctave");
+    subLevelParam   = apvts.getRawParameterValue ("subLevel");
+    noiseLevelParam = apvts.getRawParameterValue ("noiseLevel");
+    attackParam     = apvts.getRawParameterValue ("attack");
+    decayParam      = apvts.getRawParameterValue ("decay");
+    sustainParam    = apvts.getRawParameterValue ("sustain");
+    releaseParam    = apvts.getRawParameterValue ("release");
+    cutoffParam     = apvts.getRawParameterValue ("filterCutoff");
+    resonanceParam  = apvts.getRawParameterValue ("filterRes");
+    gainParam       = apvts.getRawParameterValue ("gain");
+}
+
+void AstralVegaAudioProcessor::wireOscParams (OscParamRefs& refs, const juce::String& idPrefix)
+{
+    refs.table  = apvts.getRawParameterValue (idPrefix + "Table");
+    refs.pos    = apvts.getRawParameterValue (idPrefix + "Pos");
+    refs.coarse = apvts.getRawParameterValue (idPrefix + "Coarse");
+    refs.unison = apvts.getRawParameterValue (idPrefix + "Unison");
+    refs.detune = apvts.getRawParameterValue (idPrefix + "Detune");
+    refs.spread = apvts.getRawParameterValue (idPrefix + "Spread");
+    refs.level  = apvts.getRawParameterValue (idPrefix + "Level");
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
+    const auto addOscSection = [&layout] (const juce::String& idPrefix, const juce::String& name,
+                                          float defaultPos, float defaultLevel)
+    {
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { idPrefix + "Table", 1 }, name + " Wavetable",
+            juce::StringArray { "Basic", "PWM", "Spectra" }, 0));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { idPrefix + "Pos", 1 }, name + " WT Position",
+            juce::NormalisableRange<float> (0.0f, 1.0f), defaultPos));
+
+        layout.add (std::make_unique<juce::AudioParameterInt> (
+            juce::ParameterID { idPrefix + "Coarse", 1 }, name + " Coarse", -24, 24, 0));
+
+        layout.add (std::make_unique<juce::AudioParameterInt> (
+            juce::ParameterID { idPrefix + "Unison", 1 }, name + " Unison",
+            1, SynthVoice::maxUnison, 1));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { idPrefix + "Detune", 1 }, name + " Detune",
+            juce::NormalisableRange<float> (0.0f, 100.0f, 0.0f, 0.6f), 15.0f));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { idPrefix + "Spread", 1 }, name + " Spread",
+            juce::NormalisableRange<float> (0.0f, 1.0f), 0.5f));
+
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { idPrefix + "Level", 1 }, name + " Level",
+            juce::NormalisableRange<float> (0.0f, 1.0f), defaultLevel));
+    };
+
+    addOscSection ("oscA", "Osc A", 0.66f, 0.8f);
+    addOscSection ("oscB", "Osc B", 0.0f, 0.0f);
+
     layout.add (std::make_unique<juce::AudioParameterChoice> (
-        juce::ParameterID { "oscTable", 1 }, "Wavetable",
-        juce::StringArray { "Basic", "PWM", "Spectra" }, 0));
+        juce::ParameterID { "subOctave", 1 }, "Sub Octave",
+        juce::StringArray { "-1 Oct", "-2 Oct" }, 0));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "oscPos", 1 }, "WT Position",
-        juce::NormalisableRange<float> (0.0f, 1.0f), 0.66f));
-
-    layout.add (std::make_unique<juce::AudioParameterInt> (
-        juce::ParameterID { "unison", 1 }, "Unison", 1, SynthVoice::maxUnison, 1));
+        juce::ParameterID { "subLevel", 1 }, "Sub Level",
+        juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "detune", 1 }, "Detune",
-        juce::NormalisableRange<float> (0.0f, 100.0f, 0.0f, 0.6f), 15.0f));
-
-    layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { "spread", 1 }, "Spread",
-        juce::NormalisableRange<float> (0.0f, 1.0f), 0.5f));
+        juce::ParameterID { "noiseLevel", 1 }, "Noise Level",
+        juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "attack", 1 }, "Attack",
@@ -79,6 +118,23 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
     return layout;
 }
 
+SynthVoice::OscParams AstralVegaAudioProcessor::makeOscParams (const OscParamRefs& refs) const
+{
+    SynthVoice::OscParams p;
+
+    const auto tableIndex = juce::jlimit (0, (int) wavetables.size() - 1,
+                                          (int) refs.table->load());
+    p.table = &wavetables[(size_t) tableIndex];
+    p.position = refs.pos->load();
+    p.coarse = (int) refs.coarse->load();
+    p.unisonCount = (int) refs.unison->load();
+    p.detuneCents = refs.detune->load();
+    p.spread = refs.spread->load();
+    p.level = refs.level->load();
+
+    return p;
+}
+
 void AstralVegaAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
     synth.setCurrentPlaybackSampleRate (sampleRate);
@@ -105,15 +161,14 @@ void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     // Merge events from the on-screen keyboard into the incoming MIDI stream
     keyboardState.processNextMidiBuffer (midiMessages, 0, buffer.getNumSamples(), true);
 
-    const auto tableIndex = juce::jlimit (0, (int) wavetables.size() - 1,
-                                          (int) oscTableParam->load());
-    const auto* table = &wavetables[(size_t) tableIndex];
+    const auto oscAParams = makeOscParams (oscARefs);
+    const auto oscBParams = makeOscParams (oscBRefs);
+    const int subOctavesDown = 1 + (int) subOctaveParam->load();
 
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<SynthVoice*> (synth.getVoice (i)))
-            voice->setParameters (table, oscPosParam->load(),
-                                  (int) unisonParam->load(),
-                                  detuneParam->load(), spreadParam->load(),
+            voice->setParameters (oscAParams, oscBParams,
+                                  subOctavesDown, subLevelParam->load(), noiseLevelParam->load(),
                                   attackParam->load(), decayParam->load(),
                                   sustainParam->load(), releaseParam->load(),
                                   cutoffParam->load(), resonanceParam->load());

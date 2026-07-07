@@ -36,16 +36,29 @@ public:
     juce::MidiKeyboardState keyboardState;
 
 private:
+    struct OscParamRefs
+    {
+        std::atomic<float>* table = nullptr;
+        std::atomic<float>* pos = nullptr;
+        std::atomic<float>* coarse = nullptr;
+        std::atomic<float>* unison = nullptr;
+        std::atomic<float>* detune = nullptr;
+        std::atomic<float>* spread = nullptr;
+        std::atomic<float>* level = nullptr;
+    };
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    void wireOscParams (OscParamRefs&, const juce::String& idPrefix);
+    SynthVoice::OscParams makeOscParams (const OscParamRefs&) const;
 
     std::vector<Wavetable> wavetables;
     juce::Synthesiser synth;
 
-    std::atomic<float>* oscTableParam = nullptr;
-    std::atomic<float>* oscPosParam = nullptr;
-    std::atomic<float>* unisonParam = nullptr;
-    std::atomic<float>* detuneParam = nullptr;
-    std::atomic<float>* spreadParam = nullptr;
+    OscParamRefs oscARefs, oscBRefs;
+
+    std::atomic<float>* subOctaveParam = nullptr;
+    std::atomic<float>* subLevelParam = nullptr;
+    std::atomic<float>* noiseLevelParam = nullptr;
     std::atomic<float>* attackParam = nullptr;
     std::atomic<float>* decayParam = nullptr;
     std::atomic<float>* sustainParam = nullptr;
