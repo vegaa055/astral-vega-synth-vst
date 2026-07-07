@@ -21,9 +21,13 @@ AstralVegaAudioProcessor::AstralVegaAudioProcessor()
     decayParam      = apvts.getRawParameterValue ("decay");
     sustainParam    = apvts.getRawParameterValue ("sustain");
     releaseParam    = apvts.getRawParameterValue ("release");
-    cutoffParam     = apvts.getRawParameterValue ("filterCutoff");
-    resonanceParam  = apvts.getRawParameterValue ("filterRes");
-    gainParam       = apvts.getRawParameterValue ("gain");
+    cutoffParam         = apvts.getRawParameterValue ("filterCutoff");
+    resonanceParam      = apvts.getRawParameterValue ("filterRes");
+    filterMorphParam    = apvts.getRawParameterValue ("filterMorph");
+    filterDriveParam    = apvts.getRawParameterValue ("filterDrive");
+    filterKeytrackParam = apvts.getRawParameterValue ("filterKeytrack");
+    filterEnvAmtParam   = apvts.getRawParameterValue ("filterEnvAmt");
+    gainParam           = apvts.getRawParameterValue ("gain");
 
     lfo1ShapeParam   = apvts.getRawParameterValue ("lfo1Shape");
     lfo1RateParam    = apvts.getRawParameterValue ("lfo1Rate");
@@ -129,6 +133,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
         juce::NormalisableRange<float> (0.5f, 8.0f, 0.0f, 0.5f), 0.707f));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "filterMorph", 1 }, "Filter Morph",
+        juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "filterDrive", 1 }, "Filter Drive",
+        juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "filterKeytrack", 1 }, "Filter Keytrack",
+        juce::NormalisableRange<float> (0.0f, 1.0f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "filterEnvAmt", 1 }, "Filter Env Amount",
+        juce::NormalisableRange<float> (-1.0f, 1.0f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { "gain", 1 }, "Gain",
         juce::NormalisableRange<float> (-60.0f, 6.0f), -6.0f));
 
@@ -165,7 +185,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
 
     const juce::StringArray modSources { "None", "LFO 1", "LFO 2", "Env 2", "Velocity", "Mod Wheel" };
     const juce::StringArray modTargets { "None", "Osc A Pos", "Osc B Pos", "Osc A Level",
-                                         "Osc B Level", "Pitch", "Cutoff", "Resonance" };
+                                         "Osc B Level", "Pitch", "Cutoff", "Resonance", "Morph" };
 
     for (int s = 1; s <= SynthVoice::numModSlots; ++s)
     {
@@ -242,6 +262,10 @@ SynthVoice::BlockParams AstralVegaAudioProcessor::makeBlockParams() const
 
     bp.cutoffHz = cutoffParam->load();
     bp.resonance = resonanceParam->load();
+    bp.filterMorph = filterMorphParam->load();
+    bp.filterDrive = filterDriveParam->load();
+    bp.filterKeytrack = filterKeytrackParam->load();
+    bp.filterEnvAmt = filterEnvAmtParam->load();
 
     bp.lfo1Shape = (int) lfo1ShapeParam->load();
     bp.lfo1Rate = lfo1RateParam->load();

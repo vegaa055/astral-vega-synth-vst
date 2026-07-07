@@ -95,12 +95,9 @@ bool SynthVoice::canPlaySound (juce::SynthesiserSound* sound)
 
 void SynthVoice::prepare (double sampleRate, int samplesPerBlock, int numOutputChannels)
 {
-    juce::dsp::ProcessSpec spec { sampleRate,
-                                  (juce::uint32) samplesPerBlock,
-                                  (juce::uint32) juce::jmax (1, numOutputChannels) };
+    const int channels = juce::jmax (1, numOutputChannels);
 
-    filter.prepare (spec);
-    filter.setType (juce::dsp::StateVariableTPTFilterType::lowpass);
+    filter.prepare (sampleRate, channels);
 
     adsr.setSampleRate (sampleRate);
     env2.setSampleRate (sampleRate);
@@ -112,7 +109,7 @@ void SynthVoice::prepare (double sampleRate, int samplesPerBlock, int numOutputC
     subLevelSmoothed.reset (sampleRate, 0.02);
     noiseLevelSmoothed.reset (sampleRate, 0.02);
 
-    voiceBuffer.setSize ((int) spec.numChannels, samplesPerBlock);
+    voiceBuffer.setSize (channels, samplesPerBlock);
 
     isPrepared = true;
 }
@@ -166,6 +163,7 @@ void SynthVoice::updateSubInc()
 void SynthVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int)
 {
     noteHz = (float) juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
+    noteNumber = midiNoteNumber;
     pitchMul = 1.0f;
     currentPitchSemis = 0.0f;
     velocity01 = velocity;
@@ -238,11 +236,21 @@ void SynthVoice::updateModulation (int chunkSamples)
         updateSubInc();
     }
 
-    // full amount = +/- six octaves of cutoff sweep
-    filter.setCutoffFrequency (juce::jlimit (20.0f, 20000.0f,
-                                             params.cutoffHz * std::exp2 (mod[tgtCutoff] * 6.0f)));
-    filter.setResonance (juce::jlimit (0.5f, 8.0f,
-                                       params.resonance + mod[tgtResonance] * 7.5f));
+    // cutoff: key tracking + dedicated env amount + matrix, all in octaves
+    // (full matrix/env amount = +/- six octaves of sweep)
+    const float keytrackOct = params.filterKeytrack * (float) (noteNumber - 60) / 12.0f;
+    const float envOct = src[srcEnv2] * params.filterEnvAmt;
+
+    const float cutoff = juce::jlimit (20.0f, 20000.0f,
+        params.cutoffHz * std::exp2 (keytrackOct + (mod[tgtCutoff] + envOct) * 6.0f));
+
+    const float resonance = juce::jlimit (0.5f, 8.0f,
+        params.resonance + mod[tgtResonance] * 7.5f);
+
+    const float morph = juce::jlimit (0.0f, 1.0f,
+        params.filterMorph + mod[tgtFilterMorph]);
+
+    filter.setParams (cutoff, resonance, morph, params.filterDrive);
 }
 
 void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer,
@@ -258,8 +266,6 @@ void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer,
 
     auto* left = voiceBuffer.getWritePointer (0);
     auto* right = voiceBuffer.getNumChannels() > 1 ? voiceBuffer.getWritePointer (1) : nullptr;
-
-    juce::dsp::AudioBlock<float> block (voiceBuffer);
 
     int done = 0;
 
@@ -308,8 +314,7 @@ void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer,
             }
         }
 
-        auto chunkBlock = block.getSubBlock ((size_t) done, (size_t) chunk);
-        filter.process (juce::dsp::ProcessContextReplacing<float> (chunkBlock));
+        filter.processBlock (voiceBuffer, done, chunk);
 
         done += chunk;
     }

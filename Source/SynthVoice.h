@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include "Wavetable.h"
 #include "LFO.h"
+#include "MorphFilter.h"
 
 struct SynthSound : public juce::SynthesiserSound
 {
@@ -25,7 +26,7 @@ public:
     enum ModTargetIndex
     {
         tgtNone = 0, tgtOscAPos, tgtOscBPos, tgtOscALevel, tgtOscBLevel,
-        tgtPitch, tgtCutoff, tgtResonance,
+        tgtPitch, tgtCutoff, tgtResonance, tgtFilterMorph,
         numModTargets
     };
 
@@ -57,6 +58,8 @@ public:
         float attack = 0.005f, decay = 0.2f, sustain = 0.8f, release = 0.3f;
         float env2Attack = 0.01f, env2Decay = 0.3f, env2Sustain = 0.5f, env2Release = 0.3f;
         float cutoffHz = 12000.0f, resonance = 0.707f;
+        float filterMorph = 0.0f, filterDrive = 0.0f;
+        float filterKeytrack = 0.0f, filterEnvAmt = 0.0f;
         int lfo1Shape = 0; float lfo1Rate = 2.0f;
         int lfo2Shape = 0; float lfo2Rate = 2.0f;
         ModRouting routings[numModSlots];
@@ -133,7 +136,7 @@ private:
     float subPhase = 0.0f, subInc = 0.0f;
     int subOctave = 1;             // octaves below the played note
 
-    juce::dsp::StateVariableTPTFilter<float> filter;
+    MorphFilter filter;
     juce::ADSR adsr, env2;
     juce::ADSR::Parameters adsrParams, env2Params;
     juce::Random random;
@@ -142,6 +145,7 @@ private:
     BlockParams params;
 
     float noteHz = 0.0f;
+    int noteNumber = 60;
     float pitchMul = 1.0f;
     float currentPitchSemis = 0.0f;
     float velocity01 = 0.0f;

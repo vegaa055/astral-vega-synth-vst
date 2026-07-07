@@ -69,12 +69,17 @@ private:
     juce::Slider subLevelSlider, noiseSlider, cutoffSlider, resonanceSlider, gainSlider;
     juce::Label subLevelLabel, noiseLabel, cutoffLabel, resonanceLabel, gainLabel;
 
+    juce::Slider morphSlider, driveSlider, keytrackSlider, envAmtSlider;
+    juce::Label morphLabel, driveLabel, keytrackLabel, envAmtLabel;
+
     juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider;
     juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel;
 
     std::unique_ptr<ComboBoxAttachment> subOctAttachment;
     std::unique_ptr<SliderAttachment> subLevelAttachment, noiseAttachment,
                                       cutoffAttachment, resonanceAttachment, gainAttachment,
+                                      morphAttachment, driveAttachment,
+                                      keytrackAttachment, envAmtAttachment,
                                       attackAttachment, decayAttachment,
                                       sustainAttachment, releaseAttachment;
 

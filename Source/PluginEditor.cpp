@@ -37,6 +37,10 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     setupRotary (noiseSlider, noiseLabel, "Noise");
     setupRotary (cutoffSlider, cutoffLabel, "Cutoff");
     setupRotary (resonanceSlider, resonanceLabel, "Resonance");
+    setupRotary (morphSlider, morphLabel, "Morph");
+    setupRotary (driveSlider, driveLabel, "Drive");
+    setupRotary (keytrackSlider, keytrackLabel, "Keytrack");
+    setupRotary (envAmtSlider, envAmtLabel, "Env Amt");
     setupRotary (gainSlider, gainLabel, "Gain");
     setupRotary (attackSlider, attackLabel, "Attack");
     setupRotary (decaySlider, decayLabel, "Decay");
@@ -71,6 +75,10 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     noiseAttachment     = std::make_unique<SliderAttachment> (apvts, "noiseLevel", noiseSlider);
     cutoffAttachment    = std::make_unique<SliderAttachment> (apvts, "filterCutoff", cutoffSlider);
     resonanceAttachment = std::make_unique<SliderAttachment> (apvts, "filterRes", resonanceSlider);
+    morphAttachment     = std::make_unique<SliderAttachment> (apvts, "filterMorph", morphSlider);
+    driveAttachment     = std::make_unique<SliderAttachment> (apvts, "filterDrive", driveSlider);
+    keytrackAttachment  = std::make_unique<SliderAttachment> (apvts, "filterKeytrack", keytrackSlider);
+    envAmtAttachment    = std::make_unique<SliderAttachment> (apvts, "filterEnvAmt", envAmtSlider);
     gainAttachment      = std::make_unique<SliderAttachment> (apvts, "gain", gainSlider);
     attackAttachment    = std::make_unique<SliderAttachment> (apvts, "attack", attackSlider);
     decayAttachment     = std::make_unique<SliderAttachment> (apvts, "decay", decaySlider);
@@ -98,7 +106,7 @@ void AstralVegaAudioProcessorEditor::setupModSlot (ModSlotControls& slot, int sl
 {
     const juce::StringArray sources { "None", "LFO 1", "LFO 2", "Env 2", "Velocity", "Mod Wheel" };
     const juce::StringArray targets { "None", "A Pos", "B Pos", "A Level", "B Level",
-                                      "Pitch", "Cutoff", "Reso" };
+                                      "Pitch", "Cutoff", "Reso", "Morph" };
 
     const auto num = juce::String (slotNumber);
     setupCombo (slot.src, slot.srcLabel, "Mod " + num, sources);
@@ -185,11 +193,12 @@ void AstralVegaAudioProcessorEditor::resized()
                  &oscBRow.detune, &oscBRow.spread, &oscBRow.level });
 
     layoutRow (bounds.removeFromTop (rowH),
-               { &subOctBox, &subLevelSlider, &noiseSlider,
-                 &cutoffSlider, &resonanceSlider, &gainSlider });
+               { &cutoffSlider, &resonanceSlider, &morphSlider,
+                 &driveSlider, &keytrackSlider, &envAmtSlider });
 
     layoutRow (bounds.removeFromTop (rowH),
-               { &attackSlider, &decaySlider, &sustainSlider, &releaseSlider });
+               { &subOctBox, &subLevelSlider, &noiseSlider, &attackSlider,
+                 &decaySlider, &sustainSlider, &releaseSlider, &gainSlider });
 
     layoutRow (bounds.removeFromTop (rowH),
                { &lfo1ShapeBox, &lfo1RateSlider, &lfo2ShapeBox, &lfo2RateSlider,

@@ -43,8 +43,9 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
       (32-sample chunks)
 - [ ] **M3b — Modulation extras**: tempo-synced LFO rates, global (free-running)
       LFO mode, drag-and-drop routing in the custom UI (M8)
-- [ ] **M4 — Filter section**: LP/HP/BP morphing, filter drive, key tracking,
-      envelope amount
+- [x] **M4 — Filter section**: custom TPT state-variable filter with continuous
+      LP→BP→HP morph (also a mod target), tanh drive stage, key tracking,
+      dedicated Env 2 amount knob
 - [ ] **M5 — FX chain**: chorus, phaser, delay, reverb, distortion, bitcrusher,
       reorderable rack
 - [ ] **M6 — Musts for the genres**: mono/legato mode + portamento glide (808 bass),

@@ -66,6 +66,10 @@ private:
     std::atomic<float>* releaseParam = nullptr;
     std::atomic<float>* cutoffParam = nullptr;
     std::atomic<float>* resonanceParam = nullptr;
+    std::atomic<float>* filterMorphParam = nullptr;
+    std::atomic<float>* filterDriveParam = nullptr;
+    std::atomic<float>* filterKeytrackParam = nullptr;
+    std::atomic<float>* filterEnvAmtParam = nullptr;
     std::atomic<float>* gainParam = nullptr;
 
     std::atomic<float>* lfo1ShapeParam = nullptr;
