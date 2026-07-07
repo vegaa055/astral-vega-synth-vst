@@ -15,6 +15,7 @@ public:
 private:
     using SliderAttachment   = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
+    using ButtonAttachment   = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
     struct OscRowControls
     {
@@ -58,6 +59,30 @@ private:
 
     ModSlotControls modSlots[SynthVoice::numModSlots];
 
+    juce::ToggleButton distOnButton { "Dist" }, crushOnButton { "Crush" },
+                       phaserOnButton { "Phaser" }, chorusOnButton { "Chorus" },
+                       delayOnButton { "Delay" }, reverbOnButton { "Reverb" };
+
+    juce::Slider distDriveSlider, distMixSlider, crushBitsSlider, crushRateSlider,
+                 phaserRateSlider, phaserDepthSlider, phaserMixSlider,
+                 chorusRateSlider, chorusDepthSlider, chorusMixSlider,
+                 delayTimeSlider, delayFBSlider, delayMixSlider,
+                 reverbSizeSlider, reverbDampSlider, reverbMixSlider;
+
+    juce::Label distDriveLabel, distMixLabel, crushBitsLabel, crushRateLabel,
+                phaserRateLabel, phaserDepthLabel, phaserMixLabel,
+                chorusRateLabel, chorusDepthLabel, chorusMixLabel,
+                delayTimeLabel, delayFBLabel, delayMixLabel,
+                reverbSizeLabel, reverbDampLabel, reverbMixLabel;
+
+    std::unique_ptr<ButtonAttachment> distOnAtt, crushOnAtt, phaserOnAtt,
+                                      chorusOnAtt, delayOnAtt, reverbOnAtt;
+    std::unique_ptr<SliderAttachment> distDriveAtt, distMixAtt, crushBitsAtt, crushRateAtt,
+                                      phaserRateAtt, phaserDepthAtt, phaserMixAtt,
+                                      chorusRateAtt, chorusDepthAtt, chorusMixAtt,
+                                      delayTimeAtt, delayFBAtt, delayMixAtt,
+                                      reverbSizeAtt, reverbDampAtt, reverbMixAtt;
+
     std::unique_ptr<ComboBoxAttachment> lfo1ShapeAttachment, lfo2ShapeAttachment;
     std::unique_ptr<SliderAttachment> lfo1RateAttachment, lfo2RateAttachment,
                                       env2AttackAttachment, env2DecayAttachment,
@@ -65,6 +90,14 @@ private:
 
     juce::ComboBox subOctBox;
     juce::Label subOctLabel;
+
+    juce::ComboBox voiceModeBox;
+    juce::Label voiceModeLabel;
+    juce::Slider glideSlider, bendRangeSlider;
+    juce::Label glideLabel, bendRangeLabel;
+    juce::ToggleButton pumpOnButton { "Pump" };
+    juce::Slider pumpAmountSlider, pumpRateSlider;
+    juce::Label pumpAmountLabel, pumpRateLabel;
 
     juce::Slider subLevelSlider, noiseSlider, cutoffSlider, resonanceSlider, gainSlider;
     juce::Label subLevelLabel, noiseLabel, cutoffLabel, resonanceLabel, gainLabel;
@@ -75,8 +108,11 @@ private:
     juce::Slider attackSlider, decaySlider, sustainSlider, releaseSlider;
     juce::Label attackLabel, decayLabel, sustainLabel, releaseLabel;
 
-    std::unique_ptr<ComboBoxAttachment> subOctAttachment;
-    std::unique_ptr<SliderAttachment> subLevelAttachment, noiseAttachment,
+    std::unique_ptr<ComboBoxAttachment> subOctAttachment, voiceModeAttachment;
+    std::unique_ptr<ButtonAttachment> pumpOnAtt;
+    std::unique_ptr<SliderAttachment> glideAttachment, bendRangeAttachment,
+                                      pumpAmountAtt, pumpRateAtt,
+                                      subLevelAttachment, noiseAttachment,
                                       cutoffAttachment, resonanceAttachment, gainAttachment,
                                       morphAttachment, driveAttachment,
                                       keytrackAttachment, envAmtAttachment,

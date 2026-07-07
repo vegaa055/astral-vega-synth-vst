@@ -60,6 +60,9 @@ public:
         float cutoffHz = 12000.0f, resonance = 0.707f;
         float filterMorph = 0.0f, filterDrive = 0.0f;
         float filterKeytrack = 0.0f, filterEnvAmt = 0.0f;
+        int voiceMode = 0;             // 0 poly, 1 mono, 2 legato
+        float glideTime = 0.0f;
+        float pitchBendRange = 2.0f;   // semitones
         int lfo1Shape = 0; float lfo1Rate = 2.0f;
         int lfo2Shape = 0; float lfo2Rate = 2.0f;
         ModRouting routings[numModSlots];
@@ -72,8 +75,16 @@ public:
                     juce::SynthesiserSound* sound, int currentPitchWheelPosition) override;
     void stopNote (float velocity, bool allowTailOff) override;
 
-    void pitchWheelMoved (int) override {}
+    void pitchWheelMoved (int newValue) override
+    {
+        bendNorm = (float) (newValue - 8192) / 8192.0f;
+    }
+
     void controllerMoved (int, int) override {}
+
+    /** Arms the next startNote/stopNote pair as a mono/legato pitch hand-off:
+        stopNote is ignored and startNote only retargets the pitch. */
+    void setLegatoPending() noexcept { legatoPending = true; }
 
     void prepare (double sampleRate, int samplesPerBlock, int numOutputChannels);
     void setParameters (const BlockParams&);
@@ -129,6 +140,11 @@ private:
     void updateModulation (int chunkSamples);
     void updateSubInc();
 
+    bool glideEnabled() const noexcept
+    {
+        return params.voiceMode != 0 && params.glideTime > 0.0005f;
+    }
+
     OscSection oscA, oscB;
     LFO lfo1, lfo2;
 
@@ -144,11 +160,17 @@ private:
     juce::AudioBuffer<float> voiceBuffer;
     BlockParams params;
 
-    float noteHz = 0.0f;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Multiplicative> glideHz { 440.0f };
+
+    float targetHz = 0.0f;         // pitch of the most recent note-on
+    float currentHz = 0.0f;        // possibly mid-glide pitch actually sounding
     int noteNumber = 60;
     float pitchMul = 1.0f;
     float currentPitchSemis = 0.0f;
+    float bendNorm = 0.0f;
+    float appliedGlideTime = -1.0f;
     float velocity01 = 0.0f;
     float level = 0.0f;
+    bool legatoPending = false;
     bool isPrepared = false;
 };

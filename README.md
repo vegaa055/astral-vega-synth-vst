@@ -46,10 +46,12 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
 - [x] **M4 — Filter section**: custom TPT state-variable filter with continuous
       LP→BP→HP morph (also a mod target), tanh drive stage, key tracking,
       dedicated Env 2 amount knob
-- [ ] **M5 — FX chain**: chorus, phaser, delay, reverb, distortion, bitcrusher,
-      reorderable rack
-- [ ] **M6 — Musts for the genres**: mono/legato mode + portamento glide (808 bass),
-      pitch-bend range control, LFO-driven "pump" (sidechain feel)
+- [x] **M5 — FX chain**: distortion (tanh) → bitcrusher → phaser → chorus →
+      feedback delay → reverb, each with bypass toggle; two-column editor layout
+      (rack reordering deferred to the M8 custom UI)
+- [x] **M6 — Musts for the genres**: Poly/Mono/Legato voice modes with held-note
+      stack, portamento glide (exponential, constant-time), pitch-bend range
+      control (0–24 semis), pump effect on the master bus (sidechain feel)
 - [ ] **M7 — Presets**: preset browser, factory bank (synthwave leads/pads/basses,
       hip-hop 808s/plucks/keys)
 - [ ] **M8 — Custom UI**: full skinned interface, oscilloscope + spectrum display

@@ -2,6 +2,8 @@
 
 #include <JuceHeader.h>
 #include "SynthVoice.h"
+#include "AstralSynth.h"
+#include "FXChain.h"
 
 class AstralVegaAudioProcessor : public juce::AudioProcessor
 {
@@ -47,13 +49,44 @@ private:
         std::atomic<float>* level = nullptr;
     };
 
+    struct FXParamRefs
+    {
+        std::atomic<float>* distOn = nullptr;
+        std::atomic<float>* distDrive = nullptr;
+        std::atomic<float>* distMix = nullptr;
+        std::atomic<float>* crushOn = nullptr;
+        std::atomic<float>* crushBits = nullptr;
+        std::atomic<float>* crushRate = nullptr;
+        std::atomic<float>* phaserOn = nullptr;
+        std::atomic<float>* phaserRate = nullptr;
+        std::atomic<float>* phaserDepth = nullptr;
+        std::atomic<float>* phaserMix = nullptr;
+        std::atomic<float>* chorusOn = nullptr;
+        std::atomic<float>* chorusRate = nullptr;
+        std::atomic<float>* chorusDepth = nullptr;
+        std::atomic<float>* chorusMix = nullptr;
+        std::atomic<float>* delayOn = nullptr;
+        std::atomic<float>* delayTime = nullptr;
+        std::atomic<float>* delayFeedback = nullptr;
+        std::atomic<float>* delayMix = nullptr;
+        std::atomic<float>* reverbOn = nullptr;
+        std::atomic<float>* reverbSize = nullptr;
+        std::atomic<float>* reverbDamp = nullptr;
+        std::atomic<float>* reverbMix = nullptr;
+        std::atomic<float>* pumpOn = nullptr;
+        std::atomic<float>* pumpAmount = nullptr;
+        std::atomic<float>* pumpRate = nullptr;
+    };
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     void wireOscParams (OscParamRefs&, const juce::String& idPrefix);
     SynthVoice::OscParams makeOscParams (const OscParamRefs&) const;
     SynthVoice::BlockParams makeBlockParams() const;
+    FXChain::Params makeFXParams() const;
 
     std::vector<Wavetable> wavetables;
-    juce::Synthesiser synth;
+    AstralSynth synth;
+    FXChain fxChain;
 
     OscParamRefs oscARefs, oscBRefs;
 
@@ -71,6 +104,9 @@ private:
     std::atomic<float>* filterKeytrackParam = nullptr;
     std::atomic<float>* filterEnvAmtParam = nullptr;
     std::atomic<float>* gainParam = nullptr;
+    std::atomic<float>* voiceModeParam = nullptr;
+    std::atomic<float>* glideTimeParam = nullptr;
+    std::atomic<float>* bendRangeParam = nullptr;
 
     std::atomic<float>* lfo1ShapeParam = nullptr;
     std::atomic<float>* lfo1RateParam = nullptr;
@@ -84,6 +120,8 @@ private:
     std::atomic<float>* modSrcParams[SynthVoice::numModSlots] {};
     std::atomic<float>* modDstParams[SynthVoice::numModSlots] {};
     std::atomic<float>* modAmtParams[SynthVoice::numModSlots] {};
+
+    FXParamRefs fxRefs;
 
     float modWheelValue = 0.0f;
 

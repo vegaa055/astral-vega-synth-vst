@@ -28,6 +28,9 @@ AstralVegaAudioProcessor::AstralVegaAudioProcessor()
     filterKeytrackParam = apvts.getRawParameterValue ("filterKeytrack");
     filterEnvAmtParam   = apvts.getRawParameterValue ("filterEnvAmt");
     gainParam           = apvts.getRawParameterValue ("gain");
+    voiceModeParam      = apvts.getRawParameterValue ("voiceMode");
+    glideTimeParam      = apvts.getRawParameterValue ("glideTime");
+    bendRangeParam      = apvts.getRawParameterValue ("pitchBendRange");
 
     lfo1ShapeParam   = apvts.getRawParameterValue ("lfo1Shape");
     lfo1RateParam    = apvts.getRawParameterValue ("lfo1Rate");
@@ -45,6 +48,32 @@ AstralVegaAudioProcessor::AstralVegaAudioProcessor()
         modDstParams[s] = apvts.getRawParameterValue (prefix + "Dst");
         modAmtParams[s] = apvts.getRawParameterValue (prefix + "Amt");
     }
+
+    fxRefs.distOn        = apvts.getRawParameterValue ("distOn");
+    fxRefs.distDrive     = apvts.getRawParameterValue ("distDrive");
+    fxRefs.distMix       = apvts.getRawParameterValue ("distMix");
+    fxRefs.crushOn       = apvts.getRawParameterValue ("crushOn");
+    fxRefs.crushBits     = apvts.getRawParameterValue ("crushBits");
+    fxRefs.crushRate     = apvts.getRawParameterValue ("crushRate");
+    fxRefs.phaserOn      = apvts.getRawParameterValue ("phaserOn");
+    fxRefs.phaserRate    = apvts.getRawParameterValue ("phaserRate");
+    fxRefs.phaserDepth   = apvts.getRawParameterValue ("phaserDepth");
+    fxRefs.phaserMix     = apvts.getRawParameterValue ("phaserMix");
+    fxRefs.chorusOn      = apvts.getRawParameterValue ("chorusOn");
+    fxRefs.chorusRate    = apvts.getRawParameterValue ("chorusRate");
+    fxRefs.chorusDepth   = apvts.getRawParameterValue ("chorusDepth");
+    fxRefs.chorusMix     = apvts.getRawParameterValue ("chorusMix");
+    fxRefs.delayOn       = apvts.getRawParameterValue ("delayOn");
+    fxRefs.delayTime     = apvts.getRawParameterValue ("delayTime");
+    fxRefs.delayFeedback = apvts.getRawParameterValue ("delayFeedback");
+    fxRefs.delayMix      = apvts.getRawParameterValue ("delayMix");
+    fxRefs.reverbOn      = apvts.getRawParameterValue ("reverbOn");
+    fxRefs.reverbSize    = apvts.getRawParameterValue ("reverbSize");
+    fxRefs.reverbDamp    = apvts.getRawParameterValue ("reverbDamp");
+    fxRefs.reverbMix     = apvts.getRawParameterValue ("reverbMix");
+    fxRefs.pumpOn        = apvts.getRawParameterValue ("pumpOn");
+    fxRefs.pumpAmount    = apvts.getRawParameterValue ("pumpAmount");
+    fxRefs.pumpRate      = apvts.getRawParameterValue ("pumpRate");
 }
 
 void AstralVegaAudioProcessor::wireOscParams (OscParamRefs& refs, const juce::String& idPrefix)
@@ -152,6 +181,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
         juce::ParameterID { "gain", 1 }, "Gain",
         juce::NormalisableRange<float> (-60.0f, 6.0f), -6.0f));
 
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { "voiceMode", 1 }, "Voice Mode",
+        juce::StringArray { "Poly", "Mono", "Legato" }, 0));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "glideTime", 1 }, "Glide Time",
+        juce::NormalisableRange<float> (0.0f, 2.0f, 0.0f, 0.4f), 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { "pitchBendRange", 1 }, "Pitch Bend Range", 0, 24, 2));
+
     const juce::StringArray lfoShapes { "Sine", "Triangle", "Saw Down", "Square", "S&H" };
 
     const auto addLfo = [&layout, &lfoShapes] (const juce::String& idPrefix, const juce::String& name)
@@ -203,6 +243,53 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
             juce::NormalisableRange<float> (-1.0f, 1.0f), 0.0f));
     }
 
+    const auto addBool = [&layout] (const juce::String& id, const juce::String& name)
+    {
+        layout.add (std::make_unique<juce::AudioParameterBool> (
+            juce::ParameterID { id, 1 }, name, false));
+    };
+
+    const auto addFloat = [&layout] (const juce::String& id, const juce::String& name,
+                                     juce::NormalisableRange<float> range, float def)
+    {
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { id, 1 }, name, range, def));
+    };
+
+    addBool ("distOn", "Dist On");
+    addFloat ("distDrive", "Dist Drive", { 0.0f, 1.0f }, 0.3f);
+    addFloat ("distMix", "Dist Mix", { 0.0f, 1.0f }, 1.0f);
+
+    addBool ("crushOn", "Crush On");
+    layout.add (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { "crushBits", 1 }, "Crush Bits", 1, 16, 8));
+    layout.add (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { "crushRate", 1 }, "Crush Rate", 1, 40, 4));
+
+    addBool ("phaserOn", "Phaser On");
+    addFloat ("phaserRate", "Phaser Rate", { 0.02f, 10.0f, 0.0f, 0.5f }, 0.5f);
+    addFloat ("phaserDepth", "Phaser Depth", { 0.0f, 1.0f }, 0.7f);
+    addFloat ("phaserMix", "Phaser Mix", { 0.0f, 1.0f }, 0.5f);
+
+    addBool ("chorusOn", "Chorus On");
+    addFloat ("chorusRate", "Chorus Rate", { 0.02f, 5.0f, 0.0f, 0.5f }, 1.0f);
+    addFloat ("chorusDepth", "Chorus Depth", { 0.0f, 1.0f }, 0.3f);
+    addFloat ("chorusMix", "Chorus Mix", { 0.0f, 1.0f }, 0.5f);
+
+    addBool ("delayOn", "Delay On");
+    addFloat ("delayTime", "Delay Time", { 10.0f, 1500.0f, 0.0f, 0.5f }, 350.0f);
+    addFloat ("delayFeedback", "Delay Feedback", { 0.0f, 0.95f }, 0.4f);
+    addFloat ("delayMix", "Delay Mix", { 0.0f, 1.0f }, 0.25f);
+
+    addBool ("reverbOn", "Reverb On");
+    addFloat ("reverbSize", "Reverb Size", { 0.0f, 1.0f }, 0.6f);
+    addFloat ("reverbDamp", "Reverb Damping", { 0.0f, 1.0f }, 0.4f);
+    addFloat ("reverbMix", "Reverb Mix", { 0.0f, 1.0f }, 0.3f);
+
+    addBool ("pumpOn", "Pump On");
+    addFloat ("pumpAmount", "Pump Amount", { 0.0f, 1.0f }, 0.5f);
+    addFloat ("pumpRate", "Pump Rate", { 0.5f, 8.0f, 0.0f, 0.5f }, 2.0f);
+
     return layout;
 }
 
@@ -230,6 +317,8 @@ void AstralVegaAudioProcessor::prepareToPlay (double sampleRate, int samplesPerB
     for (int i = 0; i < synth.getNumVoices(); ++i)
         if (auto* voice = dynamic_cast<SynthVoice*> (synth.getVoice (i)))
             voice->prepare (sampleRate, samplesPerBlock, getTotalNumOutputChannels());
+
+    fxChain.prepare (sampleRate, samplesPerBlock, getTotalNumOutputChannels());
 }
 
 bool AstralVegaAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -267,6 +356,10 @@ SynthVoice::BlockParams AstralVegaAudioProcessor::makeBlockParams() const
     bp.filterKeytrack = filterKeytrackParam->load();
     bp.filterEnvAmt = filterEnvAmtParam->load();
 
+    bp.voiceMode = (int) voiceModeParam->load();
+    bp.glideTime = glideTimeParam->load();
+    bp.pitchBendRange = (float) bendRangeParam->load();
+
     bp.lfo1Shape = (int) lfo1ShapeParam->load();
     bp.lfo1Rate = lfo1RateParam->load();
     bp.lfo2Shape = (int) lfo2ShapeParam->load();
@@ -284,12 +377,53 @@ SynthVoice::BlockParams AstralVegaAudioProcessor::makeBlockParams() const
     return bp;
 }
 
+FXChain::Params AstralVegaAudioProcessor::makeFXParams() const
+{
+    FXChain::Params fx;
+
+    fx.distOn = fxRefs.distOn->load() > 0.5f;
+    fx.distDrive = fxRefs.distDrive->load();
+    fx.distMix = fxRefs.distMix->load();
+
+    fx.crushOn = fxRefs.crushOn->load() > 0.5f;
+    fx.crushBits = (int) fxRefs.crushBits->load();
+    fx.crushRate = (int) fxRefs.crushRate->load();
+
+    fx.phaserOn = fxRefs.phaserOn->load() > 0.5f;
+    fx.phaserRate = fxRefs.phaserRate->load();
+    fx.phaserDepth = fxRefs.phaserDepth->load();
+    fx.phaserMix = fxRefs.phaserMix->load();
+
+    fx.chorusOn = fxRefs.chorusOn->load() > 0.5f;
+    fx.chorusRate = fxRefs.chorusRate->load();
+    fx.chorusDepth = fxRefs.chorusDepth->load();
+    fx.chorusMix = fxRefs.chorusMix->load();
+
+    fx.delayOn = fxRefs.delayOn->load() > 0.5f;
+    fx.delayMs = fxRefs.delayTime->load();
+    fx.delayFeedback = fxRefs.delayFeedback->load();
+    fx.delayMix = fxRefs.delayMix->load();
+
+    fx.reverbOn = fxRefs.reverbOn->load() > 0.5f;
+    fx.reverbSize = fxRefs.reverbSize->load();
+    fx.reverbDamp = fxRefs.reverbDamp->load();
+    fx.reverbMix = fxRefs.reverbMix->load();
+
+    fx.pumpOn = fxRefs.pumpOn->load() > 0.5f;
+    fx.pumpAmount = fxRefs.pumpAmount->load();
+    fx.pumpRate = fxRefs.pumpRate->load();
+
+    return fx;
+}
+
 void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                                              juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
 
     buffer.clear();
+
+    synth.setVoiceMode ((int) voiceModeParam->load());
 
     // Merge events from the on-screen keyboard into the incoming MIDI stream
     keyboardState.processNextMidiBuffer (midiMessages, 0, buffer.getNumSamples(), true);
@@ -309,6 +443,9 @@ void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             voice->setParameters (blockParams);
 
     synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
+
+    fxChain.setParams (makeFXParams());
+    fxChain.process (buffer);
 
     buffer.applyGain (juce::Decibels::decibelsToGain (gainParam->load()));
 }

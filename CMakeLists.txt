@@ -28,7 +28,8 @@ target_sources(AstralVega PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
     Source/SynthVoice.cpp
-    Source/Wavetable.cpp)
+    Source/Wavetable.cpp
+    Source/FXChain.cpp)
 
 target_compile_definitions(AstralVega PUBLIC
     JUCE_WEB_BROWSER=0

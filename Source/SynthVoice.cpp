@@ -108,6 +108,8 @@ void SynthVoice::prepare (double sampleRate, int samplesPerBlock, int numOutputC
     oscB.reset (sampleRate);
     subLevelSmoothed.reset (sampleRate, 0.02);
     noiseLevelSmoothed.reset (sampleRate, 0.02);
+    glideHz.reset (sampleRate, 0.05);
+    appliedGlideTime = -1.0f;
 
     voiceBuffer.setSize (channels, samplesPerBlock);
 
@@ -119,7 +121,16 @@ void SynthVoice::setParameters (const BlockParams& p)
     params = p;
 
     const auto sampleRate = getSampleRate();
-    const float effectiveHz = noteHz * pitchMul;
+
+    if (! juce::approximatelyEqual (p.glideTime, appliedGlideTime))
+    {
+        appliedGlideTime = p.glideTime;
+
+        if (sampleRate > 0.0)
+            glideHz.reset (sampleRate, juce::jmax (0.001, (double) p.glideTime));
+    }
+
+    const float effectiveHz = currentHz * pitchMul;
 
     oscA.applyParams (p.oscA, effectiveHz, sampleRate);
     oscB.applyParams (p.oscB, effectiveHz, sampleRate);
@@ -156,21 +167,46 @@ void SynthVoice::updateSubInc()
 {
     const auto sampleRate = getSampleRate();
 
-    if (sampleRate > 0.0 && noteHz > 0.0f)
-        subInc = (float) (noteHz * pitchMul * std::exp2 ((float) -subOctave) / sampleRate);
+    if (sampleRate > 0.0 && currentHz > 0.0f)
+        subInc = (float) (currentHz * pitchMul * std::exp2 ((float) -subOctave) / sampleRate);
 }
 
-void SynthVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*, int)
+void SynthVoice::startNote (int midiNoteNumber, float velocity, juce::SynthesiserSound*,
+                            int currentPitchWheelPosition)
 {
-    noteHz = (float) juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
+    const float newHz = (float) juce::MidiMessage::getMidiNoteInHertz (midiNoteNumber);
+    const bool legato = legatoPending && adsr.isActive();
+    legatoPending = false;
+
     noteNumber = midiNoteNumber;
-    pitchMul = 1.0f;
-    currentPitchSemis = 0.0f;
+    targetHz = newHz;
+    bendNorm = (float) (currentPitchWheelPosition - 8192) / 8192.0f;
+
+    if (glideEnabled() && currentHz > 0.0f)
+    {
+        glideHz.setCurrentAndTargetValue (currentHz);   // slide from where we are
+        glideHz.setTargetValue (newHz);
+    }
+    else
+    {
+        glideHz.setCurrentAndTargetValue (newHz);
+        currentHz = newHz;
+    }
+
+    currentPitchSemis = -1000.0f;   // force a tuning update on the next control chunk
+
+    if (legato)
+        return;   // pitch hand-off only: envelopes, LFOs and phases keep running
+
+    if (currentHz <= 0.0f)
+        currentHz = newHz;
+
     velocity01 = velocity;
+    pitchMul = 1.0f;
 
     const auto sampleRate = getSampleRate();
-    oscA.noteStart (params.oscA, noteHz, sampleRate, random);
-    oscB.noteStart (params.oscB, noteHz, sampleRate, random);
+    oscA.noteStart (params.oscA, currentHz, sampleRate, random);
+    oscB.noteStart (params.oscB, currentHz, sampleRate, random);
 
     subPhase = 0.0f;
     updateSubInc();
@@ -189,6 +225,9 @@ void SynthVoice::startNote (int midiNoteNumber, float velocity, juce::Synthesise
 
 void SynthVoice::stopNote (float, bool allowTailOff)
 {
+    if (legatoPending)
+        return;   // synthetic stop from a mono/legato pitch hand-off
+
     adsr.noteOff();
     env2.noteOff();
 
@@ -222,17 +261,24 @@ void SynthVoice::updateModulation (int chunkSamples)
     oscA.level.setTargetValue (juce::jlimit (0.0f, 1.0f, params.oscA.level + mod[tgtOscALevel]));
     oscB.level.setTargetValue (juce::jlimit (0.0f, 1.0f, params.oscB.level + mod[tgtOscBLevel]));
 
-    // full amount = +/- one octave
-    const float pitchSemis = mod[tgtPitch] * 12.0f;
+    float glidedHz = targetHz;
 
-    if (! juce::approximatelyEqual (pitchSemis, currentPitchSemis))
+    if (glideEnabled())
+        glidedHz = glideHz.skip (chunkSamples);
+
+    // matrix full amount = +/- one octave; bend wheel scaled by bend range
+    const float pitchSemis = mod[tgtPitch] * 12.0f + bendNorm * params.pitchBendRange;
+
+    if (! juce::approximatelyEqual (pitchSemis, currentPitchSemis)
+        || ! juce::approximatelyEqual (glidedHz, currentHz))
     {
         currentPitchSemis = pitchSemis;
+        currentHz = glidedHz;
         pitchMul = std::exp2 (pitchSemis / 12.0f);
 
         const auto sampleRate = getSampleRate();
-        oscA.updateFrequencies (noteHz * pitchMul, sampleRate);
-        oscB.updateFrequencies (noteHz * pitchMul, sampleRate);
+        oscA.updateFrequencies (currentHz * pitchMul, sampleRate);
+        oscB.updateFrequencies (currentHz * pitchMul, sampleRate);
         updateSubInc();
     }
 
