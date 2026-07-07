@@ -63,8 +63,9 @@ public:
         int voiceMode = 0;             // 0 poly, 1 mono, 2 legato
         float glideTime = 0.0f;
         float pitchBendRange = 2.0f;   // semitones
-        int lfo1Shape = 0; float lfo1Rate = 2.0f;
-        int lfo2Shape = 0; float lfo2Rate = 2.0f;
+        int lfo1Shape = 0; float lfo1Rate = 2.0f; bool lfo1Global = false;
+        int lfo2Shape = 0; float lfo2Rate = 2.0f; bool lfo2Global = false;
+        juce::int64 blockStartSample = 0;
         ModRouting routings[numModSlots];
         float modWheel = 0.0f;
     };
@@ -137,7 +138,7 @@ private:
         float unisonNorm = 1.0f;
     };
 
-    void updateModulation (int chunkSamples);
+    void updateModulation (int chunkSamples, juce::int64 absoluteSamplePosition);
     void updateSubInc();
 
     bool glideEnabled() const noexcept

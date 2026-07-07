@@ -1,5 +1,6 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include "TempoDivisions.h"
 
 AstralVegaAudioProcessor::AstralVegaAudioProcessor()
     : AudioProcessor (BusesProperties().withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
@@ -34,8 +35,18 @@ AstralVegaAudioProcessor::AstralVegaAudioProcessor()
 
     lfo1ShapeParam   = apvts.getRawParameterValue ("lfo1Shape");
     lfo1RateParam    = apvts.getRawParameterValue ("lfo1Rate");
+    lfo1SyncParam    = apvts.getRawParameterValue ("lfo1Sync");
+    lfo1DivParam     = apvts.getRawParameterValue ("lfo1Div");
+    lfo1FreeParam    = apvts.getRawParameterValue ("lfo1Free");
     lfo2ShapeParam   = apvts.getRawParameterValue ("lfo2Shape");
     lfo2RateParam    = apvts.getRawParameterValue ("lfo2Rate");
+    lfo2SyncParam    = apvts.getRawParameterValue ("lfo2Sync");
+    lfo2DivParam     = apvts.getRawParameterValue ("lfo2Div");
+    lfo2FreeParam    = apvts.getRawParameterValue ("lfo2Free");
+    pumpSyncParam    = apvts.getRawParameterValue ("pumpSync");
+    pumpDivParam     = apvts.getRawParameterValue ("pumpDiv");
+    delaySyncParam   = apvts.getRawParameterValue ("delaySync");
+    delayDivParam    = apvts.getRawParameterValue ("delayDiv");
     env2AttackParam  = apvts.getRawParameterValue ("env2Attack");
     env2DecayParam   = apvts.getRawParameterValue ("env2Decay");
     env2SustainParam = apvts.getRawParameterValue ("env2Sustain");
@@ -74,6 +85,71 @@ AstralVegaAudioProcessor::AstralVegaAudioProcessor()
     fxRefs.pumpOn        = apvts.getRawParameterValue ("pumpOn");
     fxRefs.pumpAmount    = apvts.getRawParameterValue ("pumpAmount");
     fxRefs.pumpRate      = apvts.getRawParameterValue ("pumpRate");
+
+    presetManager.onStateLoaded = [this]
+    {
+        {
+            const juce::ScopedLock sl (statePathLock);
+            pendingStatePath = apvts.state.getProperty ("userTablePath", {}).toString();
+        }
+        triggerAsyncUpdate();
+    };
+}
+
+AstralVegaAudioProcessor::~AstralVegaAudioProcessor()
+{
+    cancelPendingUpdate();
+    delete pendingUserTable.exchange (nullptr);
+    delete retiredUserTable.exchange (nullptr);
+}
+
+juce::String AstralVegaAudioProcessor::loadUserWavetable (const juce::File& file)
+{
+    juce::AudioFormatManager formatManager;
+    formatManager.registerBasicFormats();
+
+    std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (file));
+
+    if (reader == nullptr)
+        return "Couldn't open " + file.getFileName();
+
+    constexpr int maxFrames = 256;
+    const auto usableSamples = juce::jmin (reader->lengthInSamples,
+                                           (juce::int64) Wavetable::frameSize * maxFrames);
+    const int numFrames = (int) (usableSamples / Wavetable::frameSize);
+
+    if (numFrames < 1)
+        return file.getFileName() + " is shorter than one 2048-sample frame";
+
+    juce::AudioBuffer<float> data (1, numFrames * Wavetable::frameSize);
+
+    if (! reader->read (&data, 0, numFrames * Wavetable::frameSize, 0, true, false))
+        return "Failed to read audio data from " + file.getFileName();
+
+    auto newTable = std::make_unique<Wavetable> (file.getFileNameWithoutExtension(),
+                                                 data.getReadPointer (0), numFrames);
+
+    // clean up a table the audio thread retired earlier, then post the new one
+    delete retiredUserTable.exchange (nullptr);
+    delete pendingUserTable.exchange (newTable.release());
+
+    currentUserTablePath = file.getFullPathName();
+    apvts.state.setProperty ("userTablePath", currentUserTablePath, nullptr);
+
+    return {};
+}
+
+void AstralVegaAudioProcessor::handleAsyncUpdate()
+{
+    juce::String path;
+
+    {
+        const juce::ScopedLock sl (statePathLock);
+        path = pendingStatePath;
+    }
+
+    if (path.isNotEmpty() && path != currentUserTablePath)
+        loadUserWavetable (juce::File (path));
 }
 
 void AstralVegaAudioProcessor::wireOscParams (OscParamRefs& refs, const juce::String& idPrefix)
@@ -96,7 +172,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
     {
         layout.add (std::make_unique<juce::AudioParameterChoice> (
             juce::ParameterID { idPrefix + "Table", 1 }, name + " Wavetable",
-            juce::StringArray { "Basic", "PWM", "Spectra" }, 0));
+            juce::StringArray { "Basic", "PWM", "Spectra", "User" }, 0));
 
         layout.add (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { idPrefix + "Pos", 1 }, name + " WT Position",
@@ -202,6 +278,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
         layout.add (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { idPrefix + "Rate", 1 }, name + " Rate",
             juce::NormalisableRange<float> (0.02f, 20.0f, 0.0f, 0.4f), 2.0f));
+
+        layout.add (std::make_unique<juce::AudioParameterBool> (
+            juce::ParameterID { idPrefix + "Sync", 1 }, name + " Sync", false));
+
+        layout.add (std::make_unique<juce::AudioParameterChoice> (
+            juce::ParameterID { idPrefix + "Div", 1 }, name + " Division",
+            TempoDivisions::names(), TempoDivisions::quarterNote));
+
+        layout.add (std::make_unique<juce::AudioParameterBool> (
+            juce::ParameterID { idPrefix + "Free", 1 }, name + " Free Running", false));
     };
 
     addLfo ("lfo1", "LFO 1");
@@ -290,6 +376,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout AstralVegaAudioProcessor::cr
     addFloat ("pumpAmount", "Pump Amount", { 0.0f, 1.0f }, 0.5f);
     addFloat ("pumpRate", "Pump Rate", { 0.5f, 8.0f, 0.0f, 0.5f }, 2.0f);
 
+    addBool ("pumpSync", "Pump Sync");
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { "pumpDiv", 1 }, "Pump Division",
+        TempoDivisions::names(), TempoDivisions::quarterNote));
+
+    addBool ("delaySync", "Delay Sync");
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { "delayDiv", 1 }, "Delay Division",
+        TempoDivisions::names(), TempoDivisions::dottedEighth));
+
     return layout;
 }
 
@@ -297,9 +393,13 @@ SynthVoice::OscParams AstralVegaAudioProcessor::makeOscParams (const OscParamRef
 {
     SynthVoice::OscParams p;
 
-    const auto tableIndex = juce::jlimit (0, (int) wavetables.size() - 1,
+    const auto tableIndex = juce::jlimit (0, (int) wavetables.size(),
                                           (int) refs.table->load());
-    p.table = &wavetables[(size_t) tableIndex];
+
+    if (tableIndex >= (int) wavetables.size())   // the "User" slot
+        p.table = activeUserTable != nullptr ? activeUserTable.get() : &wavetables[0];
+    else
+        p.table = &wavetables[(size_t) tableIndex];
     p.position = refs.pos->load();
     p.coarse = (int) refs.coarse->load();
     p.unisonCount = (int) refs.unison->load();
@@ -361,9 +461,18 @@ SynthVoice::BlockParams AstralVegaAudioProcessor::makeBlockParams() const
     bp.pitchBendRange = (float) bendRangeParam->load();
 
     bp.lfo1Shape = (int) lfo1ShapeParam->load();
-    bp.lfo1Rate = lfo1RateParam->load();
+    bp.lfo1Rate = lfo1SyncParam->load() > 0.5f
+                    ? TempoDivisions::toHz ((int) lfo1DivParam->load(), currentBpm)
+                    : lfo1RateParam->load();
+    bp.lfo1Global = lfo1FreeParam->load() > 0.5f;
+
     bp.lfo2Shape = (int) lfo2ShapeParam->load();
-    bp.lfo2Rate = lfo2RateParam->load();
+    bp.lfo2Rate = lfo2SyncParam->load() > 0.5f
+                    ? TempoDivisions::toHz ((int) lfo2DivParam->load(), currentBpm)
+                    : lfo2RateParam->load();
+    bp.lfo2Global = lfo2FreeParam->load() > 0.5f;
+
+    bp.blockStartSample = currentBlockStart;
 
     for (int s = 0; s < SynthVoice::numModSlots; ++s)
     {
@@ -400,7 +509,10 @@ FXChain::Params AstralVegaAudioProcessor::makeFXParams() const
     fx.chorusMix = fxRefs.chorusMix->load();
 
     fx.delayOn = fxRefs.delayOn->load() > 0.5f;
-    fx.delayMs = fxRefs.delayTime->load();
+    fx.delayMs = delaySyncParam->load() > 0.5f
+                   ? juce::jlimit (10.0f, 1900.0f,
+                                   TempoDivisions::toMs ((int) delayDivParam->load(), currentBpm))
+                   : fxRefs.delayTime->load();
     fx.delayFeedback = fxRefs.delayFeedback->load();
     fx.delayMix = fxRefs.delayMix->load();
 
@@ -411,7 +523,11 @@ FXChain::Params AstralVegaAudioProcessor::makeFXParams() const
 
     fx.pumpOn = fxRefs.pumpOn->load() > 0.5f;
     fx.pumpAmount = fxRefs.pumpAmount->load();
-    fx.pumpRate = fxRefs.pumpRate->load();
+    fx.pumpSync = pumpSyncParam->load() > 0.5f;
+    fx.pumpRate = fx.pumpSync
+                    ? TempoDivisions::toHz ((int) pumpDivParam->load(), currentBpm)
+                    : fxRefs.pumpRate->load();
+    fx.blockStartSample = currentBlockStart;
 
     return fx;
 }
@@ -422,6 +538,37 @@ void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     juce::ScopedNoDenormals noDenormals;
 
     buffer.clear();
+
+    // adopt a freshly imported user wavetable, retiring the old one for the
+    // message thread to delete (voices only hold table pointers per block)
+    if (auto* incoming = pendingUserTable.exchange (nullptr))
+    {
+        if (activeUserTable != nullptr)
+            delete retiredUserTable.exchange (activeUserTable.release());
+
+        activeUserTable.reset (incoming);
+    }
+
+    // host tempo + timeline position; fall back to 120 BPM / an internal
+    // counter when no playhead is available (e.g. standalone)
+    double bpm = 120.0;
+    juce::int64 blockStart = internalSampleCount;
+
+    if (auto* playhead = getPlayHead())
+    {
+        if (const auto position = playhead->getPosition())
+        {
+            if (const auto hostBpm = position->getBpm())
+                bpm = *hostBpm;
+
+            if (const auto timeSamples = position->getTimeInSamples())
+                blockStart = *timeSamples;
+        }
+    }
+
+    currentBpm = bpm;
+    currentBlockStart = blockStart;
+    internalSampleCount += buffer.getNumSamples();
 
     synth.setVoiceMode ((int) voiceModeParam->load());
 
@@ -465,6 +612,13 @@ void AstralVegaAudioProcessor::setStateInformation (const void* data, int sizeIn
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         apvts.replaceState (juce::ValueTree::fromXml (*xml));
+
+    // restore the user wavetable on the message thread
+    {
+        const juce::ScopedLock sl (statePathLock);
+        pendingStatePath = apvts.state.getProperty ("userTablePath", {}).toString();
+    }
+    triggerAsyncUpdate();
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

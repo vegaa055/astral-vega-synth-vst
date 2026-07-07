@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "TempoDivisions.h"
 
 namespace
 {
@@ -58,8 +59,17 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     const juce::StringArray lfoShapes { "Sine", "Triangle", "Saw Down", "Square", "S&H" };
     setupCombo (lfo1ShapeBox, lfo1ShapeLabel, "LFO 1", lfoShapes);
     setupCombo (lfo2ShapeBox, lfo2ShapeLabel, "LFO 2", lfoShapes);
-    setupRotary (lfo1RateSlider, lfo1RateLabel, "Rate 1");
-    setupRotary (lfo2RateSlider, lfo2RateLabel, "Rate 2");
+    setupRotary (lfo1RateSlider, lfo1RateLabel, "Rate");
+    setupRotary (lfo2RateSlider, lfo2RateLabel, "Rate");
+
+    for (auto* button : { &lfo1SyncButton, &lfo1FreeButton, &lfo2SyncButton,
+                          &lfo2FreeButton, &pumpSyncButton, &delaySyncButton })
+        addAndMakeVisible (*button);
+
+    setupCombo (lfo1DivBox, lfo1DivLabel, "Division", TempoDivisions::names());
+    setupCombo (lfo2DivBox, lfo2DivLabel, "Division", TempoDivisions::names());
+    setupCombo (pumpDivBox, pumpDivLabel, "Division", TempoDivisions::names());
+    setupCombo (delayDivBox, delayDivLabel, "Division", TempoDivisions::names());
 
     setupRotary (env2AttackSlider, env2AttackLabel, "Env2 A");
     setupRotary (env2DecaySlider, env2DecayLabel, "Env2 D");
@@ -125,6 +135,16 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     lfo2ShapeAttachment = std::make_unique<ComboBoxAttachment> (apvts, "lfo2Shape", lfo2ShapeBox);
     lfo1RateAttachment  = std::make_unique<SliderAttachment> (apvts, "lfo1Rate", lfo1RateSlider);
     lfo2RateAttachment  = std::make_unique<SliderAttachment> (apvts, "lfo2Rate", lfo2RateSlider);
+    lfo1SyncAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo1Sync", lfo1SyncButton);
+    lfo1FreeAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo1Free", lfo1FreeButton);
+    lfo2SyncAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo2Sync", lfo2SyncButton);
+    lfo2FreeAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo2Free", lfo2FreeButton);
+    pumpSyncAtt  = std::make_unique<ButtonAttachment> (apvts, "pumpSync", pumpSyncButton);
+    delaySyncAtt = std::make_unique<ButtonAttachment> (apvts, "delaySync", delaySyncButton);
+    lfo1DivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "lfo1Div", lfo1DivBox);
+    lfo2DivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "lfo2Div", lfo2DivBox);
+    pumpDivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "pumpDiv", pumpDivBox);
+    delayDivAtt  = std::make_unique<ComboBoxAttachment> (apvts, "delayDiv", delayDivBox);
     env2AttackAttachment  = std::make_unique<SliderAttachment> (apvts, "env2Attack", env2AttackSlider);
     env2DecayAttachment   = std::make_unique<SliderAttachment> (apvts, "env2Decay", env2DecaySlider);
     env2SustainAttachment = std::make_unique<SliderAttachment> (apvts, "env2Sustain", env2SustainSlider);
@@ -145,8 +165,39 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     releaseAttachment   = std::make_unique<SliderAttachment> (apvts, "release", releaseSlider);
 
     for (auto* c : { (juce::Component*) &prevPresetButton, (juce::Component*) &nextPresetButton,
-                     (juce::Component*) &savePresetButton, (juce::Component*) &presetBox })
+                     (juce::Component*) &savePresetButton, (juce::Component*) &loadTableButton,
+                     (juce::Component*) &presetBox })
         addAndMakeVisible (*c);
+
+    loadTableButton.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Load wavetable (.wav of 2048-sample frames)",
+                                                           juce::File{}, "*.wav");
+
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                    | juce::FileBrowserComponent::canSelectFiles,
+                                  [this] (const juce::FileChooser& fc)
+                                  {
+                                      const auto file = fc.getResult();
+
+                                      if (file == juce::File{})
+                                          return;
+
+                                      const auto error = processorRef.loadUserWavetable (file);
+
+                                      if (error.isNotEmpty())
+                                      {
+                                          juce::AlertWindow::showMessageBoxAsync (
+                                              juce::MessageBoxIconType::WarningIcon,
+                                              "Wavetable import", error);
+                                          return;
+                                      }
+
+                                      // point osc A at the freshly loaded table
+                                      if (auto* param = processorRef.apvts.getParameter ("oscATable"))
+                                          param->setValueNotifyingHost (param->convertTo0to1 (3.0f));
+                                  });
+    };
 
     refreshPresetBox();
 
@@ -195,7 +246,7 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
 
     addAndMakeVisible (keyboard);
 
-    setSize (1460, 760);
+    setSize (1460, 800);
 }
 
 void AstralVegaAudioProcessorEditor::refreshPresetBox()
@@ -254,7 +305,7 @@ void AstralVegaAudioProcessorEditor::setupOscRow (OscRowControls& row,
                                                   const juce::String& idPrefix,
                                                   const juce::String& name)
 {
-    row.table.addItemList (juce::StringArray { "Basic", "PWM", "Spectra" }, 1);
+    row.table.addItemList (juce::StringArray { "Basic", "PWM", "Spectra", "User" }, 1);
     addAndMakeVisible (row.table);
     row.tableLabel.setText (name, juce::dontSendNotification);
     row.tableLabel.setJustificationType (juce::Justification::centred);
@@ -300,14 +351,16 @@ void AstralVegaAudioProcessorEditor::resized()
 
     // title strip: name painted on the left, preset bar on the right
     auto titleStrip = bounds.removeFromTop (48);
-    auto presetArea = titleStrip.removeFromRight (480).reduced (0, 10);
+    auto presetArea = titleStrip.removeFromRight (580).reduced (0, 10);
     prevPresetButton.setBounds (presetArea.removeFromLeft (30));
     presetArea.removeFromLeft (4);
     presetBox.setBounds (presetArea.removeFromLeft (300));
     presetArea.removeFromLeft (4);
     nextPresetButton.setBounds (presetArea.removeFromLeft (30));
     presetArea.removeFromLeft (10);
-    savePresetButton.setBounds (presetArea);
+    savePresetButton.setBounds (presetArea.removeFromLeft (70));
+    presetArea.removeFromLeft (10);
+    loadTableButton.setBounds (presetArea);
 
     bounds.removeFromBottom (8);
 
@@ -334,14 +387,19 @@ void AstralVegaAudioProcessorEditor::resized()
                  &decaySlider, &sustainSlider, &releaseSlider, &gainSlider });
 
     layoutRow (left,
-               { &voiceModeBox, &glideSlider, &bendRangeSlider,
-                 &pumpOnButton, &pumpAmountSlider, &pumpRateSlider });
+               { &voiceModeBox, &glideSlider, &bendRangeSlider, &pumpOnButton,
+                 &pumpSyncButton, &pumpDivBox, &pumpAmountSlider, &pumpRateSlider });
 
-    const int rightRowH = right.getHeight() / 6;
+    const int rightRowH = right.getHeight() / 8;
 
     layoutRow (right.removeFromTop (rightRowH),
-               { &lfo1ShapeBox, &lfo1RateSlider, &lfo2ShapeBox, &lfo2RateSlider,
-                 &env2AttackSlider, &env2DecaySlider, &env2SustainSlider, &env2ReleaseSlider });
+               { &lfo1ShapeBox, &lfo1FreeButton, &lfo1SyncButton, &lfo1DivBox, &lfo1RateSlider });
+
+    layoutRow (right.removeFromTop (rightRowH),
+               { &lfo2ShapeBox, &lfo2FreeButton, &lfo2SyncButton, &lfo2DivBox, &lfo2RateSlider });
+
+    layoutRow (right.removeFromTop (rightRowH),
+               { &env2AttackSlider, &env2DecaySlider, &env2SustainSlider, &env2ReleaseSlider });
 
     layoutRow (right.removeFromTop (rightRowH),
                { &modSlots[0].src, &modSlots[0].dst, &modSlots[0].amt,
@@ -362,6 +420,7 @@ void AstralVegaAudioProcessorEditor::resized()
                  &chorusOnButton, &chorusRateSlider, &chorusDepthSlider, &chorusMixSlider });
 
     layoutRow (right,
-               { &delayOnButton, &delayTimeSlider, &delayFBSlider, &delayMixSlider,
+               { &delayOnButton, &delaySyncButton, &delayDivBox,
+                 &delayTimeSlider, &delayFBSlider, &delayMixSlider,
                  &reverbOnButton, &reverbSizeSlider, &reverbDampSlider, &reverbMixSlider });
 }

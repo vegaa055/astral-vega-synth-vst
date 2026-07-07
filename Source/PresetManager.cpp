@@ -81,6 +81,9 @@ void PresetManager::loadPreset (int index)
         {
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
             currentName = file.getFileNameWithoutExtension();
+
+            if (onStateLoaded != nullptr)
+                onStateLoaded();
         }
     }
 
@@ -140,7 +143,8 @@ const std::vector<PresetManager::FactoryPreset>& PresetManager::getFactoryPreset
             { "oscBUnison", 5.0f }, { "oscBDetune", 22.0f }, { "oscBSpread", 0.8f },
             { "filterCutoff", 9000.0f }, { "release", 0.35f },
             { "chorusOn", 1.0f },
-            { "delayOn", 1.0f }, { "delayTime", 380.0f }, { "delayFeedback", 0.45f }, { "delayMix", 0.28f },
+            { "delayOn", 1.0f }, { "delaySync", 1.0f }, { "delayDiv", 8.0f },   // dotted 1/8
+            { "delayFeedback", 0.45f }, { "delayMix", 0.28f },
             { "reverbOn", 1.0f }, { "reverbSize", 0.7f }, { "reverbMix", 0.25f } } },
 
         { "Retro Pump Pad", {
@@ -150,7 +154,8 @@ const std::vector<PresetManager::FactoryPreset>& PresetManager::getFactoryPreset
             { "filterCutoff", 4000.0f },
             { "chorusOn", 1.0f },
             { "reverbOn", 1.0f }, { "reverbSize", 0.8f }, { "reverbMix", 0.35f },
-            { "pumpOn", 1.0f }, { "pumpAmount", 0.6f }, { "pumpRate", 2.0f } } },
+            { "pumpOn", 1.0f }, { "pumpAmount", 0.6f },
+            { "pumpSync", 1.0f }, { "pumpDiv", 6.0f } } },   // 1/4 notes
 
         { "PWM Strings", {
             { "oscATable", 1.0f }, { "oscAPos", 0.2f },
@@ -193,7 +198,7 @@ const std::vector<PresetManager::FactoryPreset>& PresetManager::getFactoryPreset
             { "oscAUnison", 3.0f }, { "oscADetune", 12.0f },
             { "oscBLevel", 0.5f }, { "oscBPos", 0.66f }, { "oscBCoarse", -12.0f },
             { "filterCutoff", 900.0f }, { "filterRes", 2.5f },
-            { "lfo1Rate", 2.0f },
+            { "lfo1Sync", 1.0f }, { "lfo1Div", 9.0f },   // 1/8 wobble on the grid
             { "mod1Src", 1.0f }, { "mod1Dst", 6.0f }, { "mod1Amt", -0.55f },
             { "distOn", 1.0f }, { "distDrive", 0.3f } } },
 

@@ -101,6 +101,13 @@ void FXChain::process (juce::AudioBuffer<float>& buffer)
 
 void FXChain::processPump (juce::AudioBuffer<float>& buffer)
 {
+    // when synced, lock the duck to the host timeline so renders sit on the grid
+    if (params.pumpSync && sampleRate > 0.0)
+    {
+        const double cycles = (double) params.blockStartSample * params.pumpRate / sampleRate;
+        pumpPhase = (float) (cycles - std::floor (cycles));
+    }
+
     // sidechain-style duck: hard dip at each cycle start, quadratic recovery
     auto* const* data = buffer.getArrayOfWritePointers();
     const int channels = buffer.getNumChannels();

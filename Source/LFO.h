@@ -25,7 +25,7 @@ public:
     /** Returns the value (-1..1) at the current phase, then advances by numSamples. */
     float tick (int numSamples, juce::Random& rng)
     {
-        const float value = valueAtPhase();
+        const float value = valueFor (phase);
 
         if (sampleRate > 0.0)
         {
@@ -41,20 +41,45 @@ public:
         return value;
     }
 
+    /** Free-running value derived from the absolute timeline position — every
+        voice computes the same value, and renders line up with the host grid. */
+    float globalValue (juce::int64 absoluteSample) const
+    {
+        if (sampleRate <= 0.0)
+            return 0.0f;
+
+        const double cycles = (double) absoluteSample * rateHz / sampleRate;
+
+        if (shape == sampleHold)
+            return hashToBipolar ((juce::int64) std::floor (cycles));
+
+        return valueFor ((float) (cycles - std::floor (cycles)));
+    }
+
 private:
-    float valueAtPhase() const
+    float valueFor (float ph) const
     {
         switch (shape)
         {
-            case sine:       return std::sin (juce::MathConstants<float>::twoPi * phase);
-            case triangle:   return 4.0f * std::abs (phase - 0.5f) - 1.0f;
-            case sawDown:    return 1.0f - 2.0f * phase;
-            case square:     return phase < 0.5f ? 1.0f : -1.0f;
+            case sine:       return std::sin (juce::MathConstants<float>::twoPi * ph);
+            case triangle:   return 4.0f * std::abs (ph - 0.5f) - 1.0f;
+            case sawDown:    return 1.0f - 2.0f * ph;
+            case square:     return ph < 0.5f ? 1.0f : -1.0f;
             case sampleHold: return shValue;
             default:         break;
         }
 
         return 0.0f;
+    }
+
+    /** Deterministic pseudo-random value per S&H cycle, identical across voices. */
+    static float hashToBipolar (juce::int64 n)
+    {
+        auto x = (juce::uint64) n * 0x9E3779B97F4A7C15ULL;
+        x ^= x >> 33;
+        x *= 0xC2B2AE3D27D4EB4FULL;
+        x ^= x >> 29;
+        return (float) (x & 0xFFFFFF) / (float) 0x7FFFFF - 1.0f;
     }
 
     double sampleRate = 0.0;

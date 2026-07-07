@@ -6,11 +6,12 @@
 #include "FXChain.h"
 #include "PresetManager.h"
 
-class AstralVegaAudioProcessor : public juce::AudioProcessor
+class AstralVegaAudioProcessor : public juce::AudioProcessor,
+                                 private juce::AsyncUpdater
 {
 public:
     AstralVegaAudioProcessor();
-    ~AstralVegaAudioProcessor() override = default;
+    ~AstralVegaAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -38,6 +39,10 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     juce::MidiKeyboardState keyboardState;
     PresetManager presetManager { apvts };
+
+    /** Imports a .wav of concatenated 2048-sample frames into the "User"
+        wavetable slot. Message thread only. Returns an error string, or {}. */
+    juce::String loadUserWavetable (const juce::File&);
 
 private:
     struct OscParamRefs
@@ -112,8 +117,18 @@ private:
 
     std::atomic<float>* lfo1ShapeParam = nullptr;
     std::atomic<float>* lfo1RateParam = nullptr;
+    std::atomic<float>* lfo1SyncParam = nullptr;
+    std::atomic<float>* lfo1DivParam = nullptr;
+    std::atomic<float>* lfo1FreeParam = nullptr;
     std::atomic<float>* lfo2ShapeParam = nullptr;
     std::atomic<float>* lfo2RateParam = nullptr;
+    std::atomic<float>* lfo2SyncParam = nullptr;
+    std::atomic<float>* lfo2DivParam = nullptr;
+    std::atomic<float>* lfo2FreeParam = nullptr;
+    std::atomic<float>* pumpSyncParam = nullptr;
+    std::atomic<float>* pumpDivParam = nullptr;
+    std::atomic<float>* delaySyncParam = nullptr;
+    std::atomic<float>* delayDivParam = nullptr;
     std::atomic<float>* env2AttackParam = nullptr;
     std::atomic<float>* env2DecayParam = nullptr;
     std::atomic<float>* env2SustainParam = nullptr;
@@ -123,9 +138,25 @@ private:
     std::atomic<float>* modDstParams[SynthVoice::numModSlots] {};
     std::atomic<float>* modAmtParams[SynthVoice::numModSlots] {};
 
+    void handleAsyncUpdate() override;
+
     FXParamRefs fxRefs;
 
     float modWheelValue = 0.0f;
+    double currentBpm = 120.0;
+    juce::int64 currentBlockStart = 0;
+    juce::int64 internalSampleCount = 0;
+
+    // user wavetable hand-off: message thread builds and posts via pending;
+    // the audio thread adopts it between blocks and retires the old table
+    // back to the message thread for deletion
+    std::atomic<Wavetable*> pendingUserTable { nullptr };
+    std::atomic<Wavetable*> retiredUserTable { nullptr };
+    std::unique_ptr<Wavetable> activeUserTable;   // audio thread only
+
+    juce::CriticalSection statePathLock;
+    juce::String pendingStatePath;                // guarded by statePathLock
+    juce::String currentUserTablePath;            // message thread only
 
     static constexpr int numVoices = 16;
 

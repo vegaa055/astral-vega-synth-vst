@@ -25,6 +25,11 @@ public:
     juce::File getUserPresetDirectory() const;
     void saveUserPreset (juce::File file);
 
+    /** Called after a user preset's full state has been restored via
+        replaceState — lets the processor react (e.g. reload the user
+        wavetable referenced by the state). */
+    std::function<void()> onStateLoaded;
+
 private:
     struct FactoryPreset
     {

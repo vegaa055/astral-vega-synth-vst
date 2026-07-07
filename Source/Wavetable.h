@@ -29,6 +29,11 @@ public:
 
     Wavetable (juce::String nameIn, int numFramesIn, const Recipe& recipe);
 
+    /** Builds a table from raw single-cycle frames (numFramesIn * frameSize
+        samples, e.g. a Serum-format .wav): forward FFT per frame, then the
+        same band-limited mipmap chain as the recipe constructor. */
+    Wavetable (juce::String nameIn, const float* frameSamples, int numFramesIn);
+
     juce::String name;
     int numFrames;
 
@@ -49,6 +54,11 @@ public:
     }
 
 private:
+    void allocateMips();
+    void buildFrameFromSpectrum (juce::dsp::FFT&, const float* spectrum,
+                                 int frameIndex, std::vector<float>& work);
+    void normaliseByPeak();
+
     std::vector<std::vector<float>> mips;
 };
 

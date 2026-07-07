@@ -35,14 +35,17 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
 - [x] **M2b — Full oscillator section**: 2nd wavetable oscillator with independent
       table/position/coarse-tune/unison, sine sub oscillator (-1/-2 oct), white
       noise source, per-oscillator levels
-- [ ] **M2c — User wavetables**: import .wav wavetables (2048-sample frames,
-      forward-FFT mipmapping), thread-safe table swapping
+- [x] **M2c — User wavetables**: "Load WT" imports Serum-format .wav files
+      (2048-sample frames, up to 256) into the "User" table slot via forward-FFT
+      mipmapping; lock-free table hand-off to the audio thread; file path
+      persists in plugin state / presets and reloads automatically
 - [x] **M3 — Modulation**: 2 poly LFOs (5 shapes, retriggered), assignable Env 2,
       6-slot mod matrix (sources: LFOs/Env 2/velocity/mod wheel; targets: osc
       positions/levels, pitch, cutoff, resonance), control-rate voice rendering
       (32-sample chunks)
-- [ ] **M3b — Modulation extras**: tempo-synced LFO rates, global (free-running)
-      LFO mode, drag-and-drop routing in the custom UI (M8)
+- [x] **M3b — Modulation extras**: tempo-synced rates for LFOs/delay/pump
+      (shared beat-division table, host BPM with 120 fallback), free-running
+      global LFO mode locked to the host timeline (drag-and-drop routing → M8)
 - [x] **M4 — Filter section**: custom TPT state-variable filter with continuous
       LP→BP→HP morph (also a mod target), tanh drive stage, key tracking,
       dedicated Env 2 amount knob

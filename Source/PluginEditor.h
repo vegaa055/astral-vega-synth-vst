@@ -50,7 +50,7 @@ private:
     AstralVegaAudioProcessor& processorRef;
 
     juce::TextButton prevPresetButton { "<" }, nextPresetButton { ">" },
-                     savePresetButton { "Save" };
+                     savePresetButton { "Save" }, loadTableButton { "Load WT" };
     juce::ComboBox presetBox;
     std::unique_ptr<juce::FileChooser> fileChooser;
 
@@ -60,6 +60,16 @@ private:
     juce::Label lfo1ShapeLabel, lfo2ShapeLabel;
     juce::Slider lfo1RateSlider, lfo2RateSlider;
     juce::Label lfo1RateLabel, lfo2RateLabel;
+
+    juce::ToggleButton lfo1SyncButton { "Sync" }, lfo1FreeButton { "Free" },
+                       lfo2SyncButton { "Sync" }, lfo2FreeButton { "Free" },
+                       pumpSyncButton { "Sync" }, delaySyncButton { "Sync" };
+    juce::ComboBox lfo1DivBox, lfo2DivBox, pumpDivBox, delayDivBox;
+    juce::Label lfo1DivLabel, lfo2DivLabel, pumpDivLabel, delayDivLabel;
+
+    std::unique_ptr<ButtonAttachment> lfo1SyncAtt, lfo1FreeAtt, lfo2SyncAtt, lfo2FreeAtt,
+                                      pumpSyncAtt, delaySyncAtt;
+    std::unique_ptr<ComboBoxAttachment> lfo1DivAtt, lfo2DivAtt, pumpDivAtt, delayDivAtt;
 
     juce::Slider env2AttackSlider, env2DecaySlider, env2SustainSlider, env2ReleaseSlider;
     juce::Label env2AttackLabel, env2DecayLabel, env2SustainLabel, env2ReleaseLabel;

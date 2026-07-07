@@ -34,6 +34,8 @@ public:
 
         bool pumpOn = false;
         float pumpAmount = 0.5f, pumpRate = 2.0f;
+        bool pumpSync = false;
+        juce::int64 blockStartSample = 0;
     };
 
     void prepare (double sampleRate, int samplesPerBlock, int numChannels);

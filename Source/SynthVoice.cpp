@@ -235,12 +235,14 @@ void SynthVoice::stopNote (float, bool allowTailOff)
         clearCurrentNote();
 }
 
-void SynthVoice::updateModulation (int chunkSamples)
+void SynthVoice::updateModulation (int chunkSamples, juce::int64 absoluteSamplePosition)
 {
     float src[numModSources];
     src[srcNone] = 0.0f;
-    src[srcLFO1] = lfo1.tick (chunkSamples, random);
-    src[srcLFO2] = lfo2.tick (chunkSamples, random);
+    src[srcLFO1] = params.lfo1Global ? lfo1.globalValue (absoluteSamplePosition)
+                                     : lfo1.tick (chunkSamples, random);
+    src[srcLFO2] = params.lfo2Global ? lfo2.globalValue (absoluteSamplePosition)
+                                     : lfo2.tick (chunkSamples, random);
 
     float env2Value = 0.0f;
     for (int k = 0; k < chunkSamples; ++k)
@@ -313,13 +315,14 @@ void SynthVoice::renderNextBlock (juce::AudioBuffer<float>& outputBuffer,
     auto* left = voiceBuffer.getWritePointer (0);
     auto* right = voiceBuffer.getNumChannels() > 1 ? voiceBuffer.getWritePointer (1) : nullptr;
 
+    const juce::int64 absoluteBase = params.blockStartSample + startSample;
     int done = 0;
 
     while (done < numSamples)
     {
         const int chunk = juce::jmin (controlInterval, numSamples - done);
 
-        updateModulation (chunk);
+        updateModulation (chunk, absoluteBase + done);
 
         for (int i = done; i < done + chunk; ++i)
         {

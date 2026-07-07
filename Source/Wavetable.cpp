@@ -8,9 +8,7 @@ Wavetable::Wavetable (juce::String nameIn, int numFramesIn, const Recipe& recipe
     std::vector<float> spectrum ((size_t) 2 * frameSize, 0.0f);
     std::vector<float> work ((size_t) 2 * frameSize);
 
-    mips.resize (numMips);
-    for (auto& m : mips)
-        m.resize ((size_t) numFrames * (frameSize + 1));
+    allocateMips();
 
     for (int f = 0; f < numFrames; ++f)
     {
@@ -23,24 +21,72 @@ Wavetable::Wavetable (juce::String nameIn, int numFramesIn, const Recipe& recipe
             spectrum[(size_t) 2 * n + 1] = c.imag();
         }
 
-        for (int mip = 0; mip < numMips; ++mip)
-        {
-            std::copy (spectrum.begin(), spectrum.end(), work.begin());
-
-            for (int n = topHarmonicForMip (mip) + 1; n <= frameSize / 2; ++n)
-                work[(size_t) 2 * n] = work[(size_t) 2 * n + 1] = 0.0f;
-
-            fft.performRealOnlyInverseTransform (work.data());
-
-            auto* dest = mips[(size_t) mip].data() + (size_t) f * (frameSize + 1);
-            std::copy (work.begin(), work.begin() + frameSize, dest);
-            dest[frameSize] = dest[0];
-        }
+        buildFrameFromSpectrum (fft, spectrum.data(), f, work);
     }
 
-    // Normalise the whole table by the brightest full-bandwidth frame, so the
-    // FFT engine's scaling convention cancels out and morphing keeps its
-    // relative frame levels.
+    normaliseByPeak();
+}
+
+Wavetable::Wavetable (juce::String nameIn, const float* frameSamples, int numFramesIn)
+    : name (std::move (nameIn)), numFrames (numFramesIn)
+{
+    juce::dsp::FFT fft (fftOrder);
+
+    std::vector<float> spectrum ((size_t) 2 * frameSize);
+    std::vector<float> work ((size_t) 2 * frameSize);
+
+    allocateMips();
+
+    for (int f = 0; f < numFrames; ++f)
+    {
+        std::fill (spectrum.begin(), spectrum.end(), 0.0f);
+        std::copy (frameSamples + (size_t) f * frameSize,
+                   frameSamples + (size_t) (f + 1) * frameSize,
+                   spectrum.begin());
+
+        fft.performRealOnlyForwardTransform (spectrum.data(), true);
+
+        // strip DC offset and the (unusable) Nyquist bin
+        spectrum[0] = spectrum[1] = 0.0f;
+        spectrum[(size_t) frameSize] = spectrum[(size_t) frameSize + 1] = 0.0f;
+
+        buildFrameFromSpectrum (fft, spectrum.data(), f, work);
+    }
+
+    normaliseByPeak();
+}
+
+void Wavetable::allocateMips()
+{
+    mips.resize (numMips);
+
+    for (auto& m : mips)
+        m.resize ((size_t) numFrames * (frameSize + 1));
+}
+
+void Wavetable::buildFrameFromSpectrum (juce::dsp::FFT& fft, const float* spectrum,
+                                        int frameIndex, std::vector<float>& work)
+{
+    for (int mip = 0; mip < numMips; ++mip)
+    {
+        std::copy (spectrum, spectrum + (size_t) 2 * frameSize, work.begin());
+
+        for (int n = topHarmonicForMip (mip) + 1; n <= frameSize / 2; ++n)
+            work[(size_t) 2 * n] = work[(size_t) 2 * n + 1] = 0.0f;
+
+        fft.performRealOnlyInverseTransform (work.data());
+
+        auto* dest = mips[(size_t) mip].data() + (size_t) frameIndex * (frameSize + 1);
+        std::copy (work.begin(), work.begin() + frameSize, dest);
+        dest[frameSize] = dest[0];
+    }
+}
+
+// Normalise the whole table by the brightest full-bandwidth frame, so the
+// FFT engine's scaling convention cancels out and morphing keeps its
+// relative frame levels.
+void Wavetable::normaliseByPeak()
+{
     float peak = 0.0f;
 
     for (int f = 0; f < numFrames; ++f)
