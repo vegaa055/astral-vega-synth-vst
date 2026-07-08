@@ -139,6 +139,39 @@ juce::String AstralVegaAudioProcessor::loadUserWavetable (const juce::File& file
     return {};
 }
 
+void AstralVegaAudioProcessor::pushScopeSamples (const juce::AudioBuffer<float>& buffer)
+{
+    const int numSamples = buffer.getNumSamples();
+    const auto* left = buffer.getReadPointer (0);
+    const auto* right = buffer.getNumChannels() > 1 ? buffer.getReadPointer (1) : left;
+
+    int start1, size1, start2, size2;
+    scopeFifo.prepareToWrite (numSamples, start1, size1, start2, size2);
+
+    for (int i = 0; i < size1; ++i)
+        scopeStorage[(size_t) (start1 + i)] = 0.5f * (left[i] + right[i]);
+
+    for (int i = 0; i < size2; ++i)
+        scopeStorage[(size_t) (start2 + i)] = 0.5f * (left[size1 + i] + right[size1 + i]);
+
+    scopeFifo.finishedWrite (size1 + size2);
+}
+
+int AstralVegaAudioProcessor::readScopeSamples (float* dest, int maxToRead)
+{
+    int start1, size1, start2, size2;
+    scopeFifo.prepareToRead (maxToRead, start1, size1, start2, size2);
+
+    for (int i = 0; i < size1; ++i)
+        dest[i] = scopeStorage[(size_t) (start1 + i)];
+
+    for (int i = 0; i < size2; ++i)
+        dest[size1 + i] = scopeStorage[(size_t) (start2 + i)];
+
+    scopeFifo.finishedRead (size1 + size2);
+    return size1 + size2;
+}
+
 void AstralVegaAudioProcessor::handleAsyncUpdate()
 {
     juce::String path;
@@ -595,6 +628,8 @@ void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     fxChain.process (buffer);
 
     buffer.applyGain (juce::Decibels::decibelsToGain (gainParam->load()));
+
+    pushScopeSamples (buffer);
 }
 
 juce::AudioProcessorEditor* AstralVegaAudioProcessor::createEditor()

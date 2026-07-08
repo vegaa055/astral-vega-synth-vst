@@ -3,13 +3,9 @@
 
 namespace
 {
-    const juce::Colour background { 0xff14101f };
-    const juce::Colour neonMagenta { 0xffff2d95 };
-    const juce::Colour neonCyan { 0xff29e6ff };
-
     void layoutRow (juce::Rectangle<int> row, std::initializer_list<juce::Component*> comps)
     {
-        row.removeFromTop (20); // room for attached labels
+        row.removeFromTop (18); // room for attached labels
         const int cellW = row.getWidth() / (int) comps.size();
 
         for (auto* comp : comps)
@@ -17,187 +13,25 @@ namespace
             auto cell = row.removeFromLeft (cellW);
 
             if (dynamic_cast<juce::ComboBox*> (comp) != nullptr)
-                comp->setBounds (cell.withSizeKeepingCentre (juce::jmax (56, cellW - 32), 28));
+                comp->setBounds (cell.withSizeKeepingCentre (juce::jmax (56, cellW - 24), 26));
             else
-                comp->setBounds (cell.reduced (6));
+                comp->setBounds (cell.reduced (4));
         }
     }
 }
 
 AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p),
+      visualizer (p),
       keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
-    setupOscRow (oscARow, "oscA", "Osc A");
-    setupOscRow (oscBRow, "oscB", "Osc B");
+    setLookAndFeel (&lookAndFeel);
 
-    setupCombo (subOctBox, subOctLabel, "Sub Oct",
-                juce::StringArray { "-1 Oct", "-2 Oct" });
-
-    setupCombo (voiceModeBox, voiceModeLabel, "Voice",
-                juce::StringArray { "Poly", "Mono", "Legato" });
-    setupRotary (glideSlider, glideLabel, "Glide");
-    setupRotary (bendRangeSlider, bendRangeLabel, "Bend Range");
-    addAndMakeVisible (pumpOnButton);
-    setupRotary (pumpAmountSlider, pumpAmountLabel, "Amount");
-    setupRotary (pumpRateSlider, pumpRateLabel, "Rate");
-
-    setupRotary (subLevelSlider, subLevelLabel, "Sub Level");
-    setupRotary (noiseSlider, noiseLabel, "Noise");
-    setupRotary (cutoffSlider, cutoffLabel, "Cutoff");
-    setupRotary (resonanceSlider, resonanceLabel, "Resonance");
-    setupRotary (morphSlider, morphLabel, "Morph");
-    setupRotary (driveSlider, driveLabel, "Drive");
-    setupRotary (keytrackSlider, keytrackLabel, "Keytrack");
-    setupRotary (envAmtSlider, envAmtLabel, "Env Amt");
-    setupRotary (gainSlider, gainLabel, "Gain");
-    setupRotary (attackSlider, attackLabel, "Attack");
-    setupRotary (decaySlider, decayLabel, "Decay");
-    setupRotary (sustainSlider, sustainLabel, "Sustain");
-    setupRotary (releaseSlider, releaseLabel, "Release");
-
-    const juce::StringArray lfoShapes { "Sine", "Triangle", "Saw Down", "Square", "S&H" };
-    setupCombo (lfo1ShapeBox, lfo1ShapeLabel, "LFO 1", lfoShapes);
-    setupCombo (lfo2ShapeBox, lfo2ShapeLabel, "LFO 2", lfoShapes);
-    setupRotary (lfo1RateSlider, lfo1RateLabel, "Rate");
-    setupRotary (lfo2RateSlider, lfo2RateLabel, "Rate");
-
-    for (auto* button : { &lfo1SyncButton, &lfo1FreeButton, &lfo2SyncButton,
-                          &lfo2FreeButton, &pumpSyncButton, &delaySyncButton })
-        addAndMakeVisible (*button);
-
-    setupCombo (lfo1DivBox, lfo1DivLabel, "Division", TempoDivisions::names());
-    setupCombo (lfo2DivBox, lfo2DivLabel, "Division", TempoDivisions::names());
-    setupCombo (pumpDivBox, pumpDivLabel, "Division", TempoDivisions::names());
-    setupCombo (delayDivBox, delayDivLabel, "Division", TempoDivisions::names());
-
-    setupRotary (env2AttackSlider, env2AttackLabel, "Env2 A");
-    setupRotary (env2DecaySlider, env2DecayLabel, "Env2 D");
-    setupRotary (env2SustainSlider, env2SustainLabel, "Env2 S");
-    setupRotary (env2ReleaseSlider, env2ReleaseLabel, "Env2 R");
-
-    for (int s = 0; s < SynthVoice::numModSlots; ++s)
-        setupModSlot (modSlots[s], s + 1);
-
-    for (auto* button : { &distOnButton, &crushOnButton, &phaserOnButton,
-                          &chorusOnButton, &delayOnButton, &reverbOnButton })
-        addAndMakeVisible (*button);
-
-    setupRotary (distDriveSlider, distDriveLabel, "Drive");
-    setupRotary (distMixSlider, distMixLabel, "Mix");
-    setupRotary (crushBitsSlider, crushBitsLabel, "Bits");
-    setupRotary (crushRateSlider, crushRateLabel, "Downsample");
-    setupRotary (phaserRateSlider, phaserRateLabel, "Rate");
-    setupRotary (phaserDepthSlider, phaserDepthLabel, "Depth");
-    setupRotary (phaserMixSlider, phaserMixLabel, "Mix");
-    setupRotary (chorusRateSlider, chorusRateLabel, "Rate");
-    setupRotary (chorusDepthSlider, chorusDepthLabel, "Depth");
-    setupRotary (chorusMixSlider, chorusMixLabel, "Mix");
-    setupRotary (delayTimeSlider, delayTimeLabel, "Time");
-    setupRotary (delayFBSlider, delayFBLabel, "Feedback");
-    setupRotary (delayMixSlider, delayMixLabel, "Mix");
-    setupRotary (reverbSizeSlider, reverbSizeLabel, "Size");
-    setupRotary (reverbDampSlider, reverbDampLabel, "Damp");
-    setupRotary (reverbMixSlider, reverbMixLabel, "Mix");
-
-    auto& apvts = processorRef.apvts;
-    voiceModeAttachment = std::make_unique<ComboBoxAttachment> (apvts, "voiceMode", voiceModeBox);
-    glideAttachment     = std::make_unique<SliderAttachment> (apvts, "glideTime", glideSlider);
-    bendRangeAttachment = std::make_unique<SliderAttachment> (apvts, "pitchBendRange", bendRangeSlider);
-    pumpOnAtt           = std::make_unique<ButtonAttachment> (apvts, "pumpOn", pumpOnButton);
-    pumpAmountAtt       = std::make_unique<SliderAttachment> (apvts, "pumpAmount", pumpAmountSlider);
-    pumpRateAtt         = std::make_unique<SliderAttachment> (apvts, "pumpRate", pumpRateSlider);
-
-    distOnAtt    = std::make_unique<ButtonAttachment> (apvts, "distOn", distOnButton);
-    crushOnAtt   = std::make_unique<ButtonAttachment> (apvts, "crushOn", crushOnButton);
-    phaserOnAtt  = std::make_unique<ButtonAttachment> (apvts, "phaserOn", phaserOnButton);
-    chorusOnAtt  = std::make_unique<ButtonAttachment> (apvts, "chorusOn", chorusOnButton);
-    delayOnAtt   = std::make_unique<ButtonAttachment> (apvts, "delayOn", delayOnButton);
-    reverbOnAtt  = std::make_unique<ButtonAttachment> (apvts, "reverbOn", reverbOnButton);
-
-    distDriveAtt   = std::make_unique<SliderAttachment> (apvts, "distDrive", distDriveSlider);
-    distMixAtt     = std::make_unique<SliderAttachment> (apvts, "distMix", distMixSlider);
-    crushBitsAtt   = std::make_unique<SliderAttachment> (apvts, "crushBits", crushBitsSlider);
-    crushRateAtt   = std::make_unique<SliderAttachment> (apvts, "crushRate", crushRateSlider);
-    phaserRateAtt  = std::make_unique<SliderAttachment> (apvts, "phaserRate", phaserRateSlider);
-    phaserDepthAtt = std::make_unique<SliderAttachment> (apvts, "phaserDepth", phaserDepthSlider);
-    phaserMixAtt   = std::make_unique<SliderAttachment> (apvts, "phaserMix", phaserMixSlider);
-    chorusRateAtt  = std::make_unique<SliderAttachment> (apvts, "chorusRate", chorusRateSlider);
-    chorusDepthAtt = std::make_unique<SliderAttachment> (apvts, "chorusDepth", chorusDepthSlider);
-    chorusMixAtt   = std::make_unique<SliderAttachment> (apvts, "chorusMix", chorusMixSlider);
-    delayTimeAtt   = std::make_unique<SliderAttachment> (apvts, "delayTime", delayTimeSlider);
-    delayFBAtt     = std::make_unique<SliderAttachment> (apvts, "delayFeedback", delayFBSlider);
-    delayMixAtt    = std::make_unique<SliderAttachment> (apvts, "delayMix", delayMixSlider);
-    reverbSizeAtt  = std::make_unique<SliderAttachment> (apvts, "reverbSize", reverbSizeSlider);
-    reverbDampAtt  = std::make_unique<SliderAttachment> (apvts, "reverbDamp", reverbDampSlider);
-    reverbMixAtt   = std::make_unique<SliderAttachment> (apvts, "reverbMix", reverbMixSlider);
-    lfo1ShapeAttachment = std::make_unique<ComboBoxAttachment> (apvts, "lfo1Shape", lfo1ShapeBox);
-    lfo2ShapeAttachment = std::make_unique<ComboBoxAttachment> (apvts, "lfo2Shape", lfo2ShapeBox);
-    lfo1RateAttachment  = std::make_unique<SliderAttachment> (apvts, "lfo1Rate", lfo1RateSlider);
-    lfo2RateAttachment  = std::make_unique<SliderAttachment> (apvts, "lfo2Rate", lfo2RateSlider);
-    lfo1SyncAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo1Sync", lfo1SyncButton);
-    lfo1FreeAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo1Free", lfo1FreeButton);
-    lfo2SyncAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo2Sync", lfo2SyncButton);
-    lfo2FreeAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo2Free", lfo2FreeButton);
-    pumpSyncAtt  = std::make_unique<ButtonAttachment> (apvts, "pumpSync", pumpSyncButton);
-    delaySyncAtt = std::make_unique<ButtonAttachment> (apvts, "delaySync", delaySyncButton);
-    lfo1DivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "lfo1Div", lfo1DivBox);
-    lfo2DivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "lfo2Div", lfo2DivBox);
-    pumpDivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "pumpDiv", pumpDivBox);
-    delayDivAtt  = std::make_unique<ComboBoxAttachment> (apvts, "delayDiv", delayDivBox);
-    env2AttackAttachment  = std::make_unique<SliderAttachment> (apvts, "env2Attack", env2AttackSlider);
-    env2DecayAttachment   = std::make_unique<SliderAttachment> (apvts, "env2Decay", env2DecaySlider);
-    env2SustainAttachment = std::make_unique<SliderAttachment> (apvts, "env2Sustain", env2SustainSlider);
-    env2ReleaseAttachment = std::make_unique<SliderAttachment> (apvts, "env2Release", env2ReleaseSlider);
-    subOctAttachment    = std::make_unique<ComboBoxAttachment> (apvts, "subOctave", subOctBox);
-    subLevelAttachment  = std::make_unique<SliderAttachment> (apvts, "subLevel", subLevelSlider);
-    noiseAttachment     = std::make_unique<SliderAttachment> (apvts, "noiseLevel", noiseSlider);
-    cutoffAttachment    = std::make_unique<SliderAttachment> (apvts, "filterCutoff", cutoffSlider);
-    resonanceAttachment = std::make_unique<SliderAttachment> (apvts, "filterRes", resonanceSlider);
-    morphAttachment     = std::make_unique<SliderAttachment> (apvts, "filterMorph", morphSlider);
-    driveAttachment     = std::make_unique<SliderAttachment> (apvts, "filterDrive", driveSlider);
-    keytrackAttachment  = std::make_unique<SliderAttachment> (apvts, "filterKeytrack", keytrackSlider);
-    envAmtAttachment    = std::make_unique<SliderAttachment> (apvts, "filterEnvAmt", envAmtSlider);
-    gainAttachment      = std::make_unique<SliderAttachment> (apvts, "gain", gainSlider);
-    attackAttachment    = std::make_unique<SliderAttachment> (apvts, "attack", attackSlider);
-    decayAttachment     = std::make_unique<SliderAttachment> (apvts, "decay", decaySlider);
-    sustainAttachment   = std::make_unique<SliderAttachment> (apvts, "sustain", sustainSlider);
-    releaseAttachment   = std::make_unique<SliderAttachment> (apvts, "release", releaseSlider);
-
+    // --- preset bar ------------------------------------------------------
     for (auto* c : { (juce::Component*) &prevPresetButton, (juce::Component*) &nextPresetButton,
                      (juce::Component*) &savePresetButton, (juce::Component*) &loadTableButton,
                      (juce::Component*) &presetBox })
         addAndMakeVisible (*c);
-
-    loadTableButton.onClick = [this]
-    {
-        fileChooser = std::make_unique<juce::FileChooser> ("Load wavetable (.wav of 2048-sample frames)",
-                                                           juce::File{}, "*.wav");
-
-        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
-                                    | juce::FileBrowserComponent::canSelectFiles,
-                                  [this] (const juce::FileChooser& fc)
-                                  {
-                                      const auto file = fc.getResult();
-
-                                      if (file == juce::File{})
-                                          return;
-
-                                      const auto error = processorRef.loadUserWavetable (file);
-
-                                      if (error.isNotEmpty())
-                                      {
-                                          juce::AlertWindow::showMessageBoxAsync (
-                                              juce::MessageBoxIconType::WarningIcon,
-                                              "Wavetable import", error);
-                                          return;
-                                      }
-
-                                      // point osc A at the freshly loaded table
-                                      if (auto* param = processorRef.apvts.getParameter ("oscATable"))
-                                          param->setValueNotifyingHost (param->convertTo0to1 (3.0f));
-                                  });
-    };
 
     refreshPresetBox();
 
@@ -244,10 +78,209 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
                                   });
     };
 
+    loadTableButton.onClick = [this]
+    {
+        fileChooser = std::make_unique<juce::FileChooser> ("Load wavetable (.wav of 2048-sample frames)",
+                                                           juce::File{}, "*.wav");
+
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                    | juce::FileBrowserComponent::canSelectFiles,
+                                  [this] (const juce::FileChooser& fc)
+                                  {
+                                      const auto file = fc.getResult();
+
+                                      if (file == juce::File{})
+                                          return;
+
+                                      const auto error = processorRef.loadUserWavetable (file);
+
+                                      if (error.isNotEmpty())
+                                      {
+                                          juce::AlertWindow::showMessageBoxAsync (
+                                              juce::MessageBoxIconType::WarningIcon,
+                                              "Wavetable import", error);
+                                          return;
+                                      }
+
+                                      if (auto* param = processorRef.apvts.getParameter ("oscATable"))
+                                          param->setValueNotifyingHost (param->convertTo0to1 (3.0f));
+                                  });
+    };
+
+    // --- visualizer -------------------------------------------------------
+    addAndMakeVisible (visualizer);
+
+    // --- synth engine (left column) ---------------------------------------
+    setupOscRow (oscARow, "oscA");
+    setupOscRow (oscBRow, "oscB");
+    oscARow.pos.setModTarget (SynthVoice::tgtOscAPos);
+    oscARow.level.setModTarget (SynthVoice::tgtOscALevel);
+    oscBRow.pos.setModTarget (SynthVoice::tgtOscBPos);
+    oscBRow.level.setModTarget (SynthVoice::tgtOscBLevel);
+
+    setupRotary (cutoffSlider, cutoffLabel, "Cutoff");
+    setupRotary (resonanceSlider, resonanceLabel, "Resonance");
+    setupRotary (morphSlider, morphLabel, "Morph");
+    setupRotary (driveSlider, driveLabel, "Drive");
+    setupRotary (keytrackSlider, keytrackLabel, "Keytrack");
+    setupRotary (envAmtSlider, envAmtLabel, "Env Amt");
+    cutoffSlider.setModTarget (SynthVoice::tgtCutoff);
+    resonanceSlider.setModTarget (SynthVoice::tgtResonance);
+    morphSlider.setModTarget (SynthVoice::tgtFilterMorph);
+
+    setupCombo (subOctBox, subOctLabel, "Sub Oct", juce::StringArray { "-1 Oct", "-2 Oct" });
+    setupRotary (subLevelSlider, subLevelLabel, "Sub Level");
+    setupRotary (noiseSlider, noiseLabel, "Noise");
+    setupRotary (attackSlider, attackLabel, "Attack");
+    setupRotary (decaySlider, decayLabel, "Decay");
+    setupRotary (sustainSlider, sustainLabel, "Sustain");
+    setupRotary (releaseSlider, releaseLabel, "Release");
+    setupRotary (gainSlider, gainLabel, "Gain");
+
+    setupCombo (voiceModeBox, voiceModeLabel, "Voice", juce::StringArray { "Poly", "Mono", "Legato" });
+    setupRotary (glideSlider, glideLabel, "Glide");
+    setupRotary (bendRangeSlider, bendRangeLabel, "Bend Range");
+    addAndMakeVisible (pumpOnButton);
+    addAndMakeVisible (pumpSyncButton);
+    setupCombo (pumpDivBox, pumpDivLabel, "Division", TempoDivisions::names());
+    setupRotary (pumpAmountSlider, pumpAmountLabel, "Amount");
+    setupRotary (pumpRateSlider, pumpRateLabel, "Rate");
+
+    // --- modulation + FX (right column) ------------------------------------
+    const juce::StringArray lfoShapes { "Sine", "Triangle", "Saw Down", "Square", "S&H" };
+    setupCombo (lfo1ShapeBox, lfo1ShapeLabel, "Shape", lfoShapes);
+    setupCombo (lfo2ShapeBox, lfo2ShapeLabel, "Shape", lfoShapes);
+
+    for (auto* button : { &lfo1SyncButton, &lfo1FreeButton, &lfo2SyncButton, &lfo2FreeButton })
+        addAndMakeVisible (*button);
+
+    setupCombo (lfo1DivBox, lfo1DivLabel, "Division", TempoDivisions::names());
+    setupCombo (lfo2DivBox, lfo2DivLabel, "Division", TempoDivisions::names());
+    setupRotary (lfo1RateSlider, lfo1RateLabel, "Rate");
+    setupRotary (lfo2RateSlider, lfo2RateLabel, "Rate");
+
+    setupRotary (env2AttackSlider, env2AttackLabel, "Attack");
+    setupRotary (env2DecaySlider, env2DecayLabel, "Decay");
+    setupRotary (env2SustainSlider, env2SustainLabel, "Sustain");
+    setupRotary (env2ReleaseSlider, env2ReleaseLabel, "Release");
+
+    for (auto* chip : { &chipLFO1, &chipLFO2, &chipEnv2, &chipVel, &chipWheel })
+        addAndMakeVisible (*chip);
+
+    for (int s = 0; s < SynthVoice::numModSlots; ++s)
+        setupModSlot (modSlots[s], s + 1);
+
+    for (auto* button : { &distOnButton, &crushOnButton, &phaserOnButton,
+                          &chorusOnButton, &delayOnButton, &delaySyncButton, &reverbOnButton })
+        addAndMakeVisible (*button);
+
+    setupCombo (delayDivBox, delayDivLabel, "Division", TempoDivisions::names());
+
+    setupRotary (distDriveSlider, distDriveLabel, "Drive");
+    setupRotary (distMixSlider, distMixLabel, "Mix");
+    setupRotary (crushBitsSlider, crushBitsLabel, "Bits");
+    setupRotary (crushRateSlider, crushRateLabel, "Downsample");
+    setupRotary (phaserRateSlider, phaserRateLabel, "Rate");
+    setupRotary (phaserDepthSlider, phaserDepthLabel, "Depth");
+    setupRotary (phaserMixSlider, phaserMixLabel, "Mix");
+    setupRotary (chorusRateSlider, chorusRateLabel, "Rate");
+    setupRotary (chorusDepthSlider, chorusDepthLabel, "Depth");
+    setupRotary (chorusMixSlider, chorusMixLabel, "Mix");
+    setupRotary (delayTimeSlider, delayTimeLabel, "Time");
+    setupRotary (delayFBSlider, delayFBLabel, "Feedback");
+    setupRotary (delayMixSlider, delayMixLabel, "Mix");
+    setupRotary (reverbSizeSlider, reverbSizeLabel, "Size");
+    setupRotary (reverbDampSlider, reverbDampLabel, "Damp");
+    setupRotary (reverbMixSlider, reverbMixLabel, "Mix");
+
+    // --- drag-and-drop routing ----------------------------------------------
+    const auto dropHandler = [this] (int source, int target) { assignModRouting (source, target); };
+
+    for (auto* target : { &oscARow.pos, &oscARow.level, &oscBRow.pos, &oscBRow.level,
+                          &cutoffSlider, &resonanceSlider, &morphSlider })
+        target->onModDrop = dropHandler;
+
+    // --- attachments --------------------------------------------------------
+    auto& apvts = processorRef.apvts;
+
+    cutoffAttachment    = std::make_unique<SliderAttachment> (apvts, "filterCutoff", cutoffSlider);
+    resonanceAttachment = std::make_unique<SliderAttachment> (apvts, "filterRes", resonanceSlider);
+    morphAttachment     = std::make_unique<SliderAttachment> (apvts, "filterMorph", morphSlider);
+    driveAttachment     = std::make_unique<SliderAttachment> (apvts, "filterDrive", driveSlider);
+    keytrackAttachment  = std::make_unique<SliderAttachment> (apvts, "filterKeytrack", keytrackSlider);
+    envAmtAttachment    = std::make_unique<SliderAttachment> (apvts, "filterEnvAmt", envAmtSlider);
+
+    subOctAttachment    = std::make_unique<ComboBoxAttachment> (apvts, "subOctave", subOctBox);
+    subLevelAttachment  = std::make_unique<SliderAttachment> (apvts, "subLevel", subLevelSlider);
+    noiseAttachment     = std::make_unique<SliderAttachment> (apvts, "noiseLevel", noiseSlider);
+    attackAttachment    = std::make_unique<SliderAttachment> (apvts, "attack", attackSlider);
+    decayAttachment     = std::make_unique<SliderAttachment> (apvts, "decay", decaySlider);
+    sustainAttachment   = std::make_unique<SliderAttachment> (apvts, "sustain", sustainSlider);
+    releaseAttachment   = std::make_unique<SliderAttachment> (apvts, "release", releaseSlider);
+    gainAttachment      = std::make_unique<SliderAttachment> (apvts, "gain", gainSlider);
+
+    voiceModeAttachment = std::make_unique<ComboBoxAttachment> (apvts, "voiceMode", voiceModeBox);
+    glideAttachment     = std::make_unique<SliderAttachment> (apvts, "glideTime", glideSlider);
+    bendRangeAttachment = std::make_unique<SliderAttachment> (apvts, "pitchBendRange", bendRangeSlider);
+    pumpOnAtt           = std::make_unique<ButtonAttachment> (apvts, "pumpOn", pumpOnButton);
+    pumpSyncAtt         = std::make_unique<ButtonAttachment> (apvts, "pumpSync", pumpSyncButton);
+    pumpDivAtt          = std::make_unique<ComboBoxAttachment> (apvts, "pumpDiv", pumpDivBox);
+    pumpAmountAtt       = std::make_unique<SliderAttachment> (apvts, "pumpAmount", pumpAmountSlider);
+    pumpRateAtt         = std::make_unique<SliderAttachment> (apvts, "pumpRate", pumpRateSlider);
+
+    lfo1ShapeAttachment = std::make_unique<ComboBoxAttachment> (apvts, "lfo1Shape", lfo1ShapeBox);
+    lfo2ShapeAttachment = std::make_unique<ComboBoxAttachment> (apvts, "lfo2Shape", lfo2ShapeBox);
+    lfo1RateAttachment  = std::make_unique<SliderAttachment> (apvts, "lfo1Rate", lfo1RateSlider);
+    lfo2RateAttachment  = std::make_unique<SliderAttachment> (apvts, "lfo2Rate", lfo2RateSlider);
+    lfo1SyncAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo1Sync", lfo1SyncButton);
+    lfo1FreeAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo1Free", lfo1FreeButton);
+    lfo2SyncAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo2Sync", lfo2SyncButton);
+    lfo2FreeAtt  = std::make_unique<ButtonAttachment> (apvts, "lfo2Free", lfo2FreeButton);
+    lfo1DivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "lfo1Div", lfo1DivBox);
+    lfo2DivAtt   = std::make_unique<ComboBoxAttachment> (apvts, "lfo2Div", lfo2DivBox);
+
+    env2AttackAttachment  = std::make_unique<SliderAttachment> (apvts, "env2Attack", env2AttackSlider);
+    env2DecayAttachment   = std::make_unique<SliderAttachment> (apvts, "env2Decay", env2DecaySlider);
+    env2SustainAttachment = std::make_unique<SliderAttachment> (apvts, "env2Sustain", env2SustainSlider);
+    env2ReleaseAttachment = std::make_unique<SliderAttachment> (apvts, "env2Release", env2ReleaseSlider);
+
+    distOnAtt    = std::make_unique<ButtonAttachment> (apvts, "distOn", distOnButton);
+    crushOnAtt   = std::make_unique<ButtonAttachment> (apvts, "crushOn", crushOnButton);
+    phaserOnAtt  = std::make_unique<ButtonAttachment> (apvts, "phaserOn", phaserOnButton);
+    chorusOnAtt  = std::make_unique<ButtonAttachment> (apvts, "chorusOn", chorusOnButton);
+    delayOnAtt   = std::make_unique<ButtonAttachment> (apvts, "delayOn", delayOnButton);
+    delaySyncAtt = std::make_unique<ButtonAttachment> (apvts, "delaySync", delaySyncButton);
+    reverbOnAtt  = std::make_unique<ButtonAttachment> (apvts, "reverbOn", reverbOnButton);
+    delayDivAtt  = std::make_unique<ComboBoxAttachment> (apvts, "delayDiv", delayDivBox);
+
+    distDriveAtt   = std::make_unique<SliderAttachment> (apvts, "distDrive", distDriveSlider);
+    distMixAtt     = std::make_unique<SliderAttachment> (apvts, "distMix", distMixSlider);
+    crushBitsAtt   = std::make_unique<SliderAttachment> (apvts, "crushBits", crushBitsSlider);
+    crushRateAtt   = std::make_unique<SliderAttachment> (apvts, "crushRate", crushRateSlider);
+    phaserRateAtt  = std::make_unique<SliderAttachment> (apvts, "phaserRate", phaserRateSlider);
+    phaserDepthAtt = std::make_unique<SliderAttachment> (apvts, "phaserDepth", phaserDepthSlider);
+    phaserMixAtt   = std::make_unique<SliderAttachment> (apvts, "phaserMix", phaserMixSlider);
+    chorusRateAtt  = std::make_unique<SliderAttachment> (apvts, "chorusRate", chorusRateSlider);
+    chorusDepthAtt = std::make_unique<SliderAttachment> (apvts, "chorusDepth", chorusDepthSlider);
+    chorusMixAtt   = std::make_unique<SliderAttachment> (apvts, "chorusMix", chorusMixSlider);
+    delayTimeAtt   = std::make_unique<SliderAttachment> (apvts, "delayTime", delayTimeSlider);
+    delayFBAtt     = std::make_unique<SliderAttachment> (apvts, "delayFeedback", delayFBSlider);
+    delayMixAtt    = std::make_unique<SliderAttachment> (apvts, "delayMix", delayMixSlider);
+    reverbSizeAtt  = std::make_unique<SliderAttachment> (apvts, "reverbSize", reverbSizeSlider);
+    reverbDampAtt  = std::make_unique<SliderAttachment> (apvts, "reverbDamp", reverbDampSlider);
+    reverbMixAtt   = std::make_unique<SliderAttachment> (apvts, "reverbMix", reverbMixSlider);
+
     addAndMakeVisible (keyboard);
 
-    setSize (1460, 800);
+    setSize (1460, 880);
 }
+
+AstralVegaAudioProcessorEditor::~AstralVegaAudioProcessorEditor()
+{
+    setLookAndFeel (nullptr);
+}
+
+//==============================================================================
 
 void AstralVegaAudioProcessorEditor::refreshPresetBox()
 {
@@ -255,6 +288,52 @@ void AstralVegaAudioProcessorEditor::refreshPresetBox()
     presetBox.addItemList (processorRef.presetManager.getPresetNames(), 1);
     presetBox.setSelectedItemIndex (processorRef.presetManager.getCurrentIndex(),
                                     juce::dontSendNotification);
+}
+
+void AstralVegaAudioProcessorEditor::assignModRouting (int sourceIndex, int targetIndex)
+{
+    auto& apvts = processorRef.apvts;
+
+    for (int s = 1; s <= SynthVoice::numModSlots; ++s)
+    {
+        const auto prefix = "mod" + juce::String (s);
+        const int slotSrc = (int) apvts.getRawParameterValue (prefix + "Src")->load();
+        const int slotDst = (int) apvts.getRawParameterValue (prefix + "Dst")->load();
+
+        const bool sameRouting = slotSrc == sourceIndex && slotDst == targetIndex;
+        const bool freeSlot = slotSrc == SynthVoice::srcNone || slotDst == SynthVoice::tgtNone;
+
+        if (! sameRouting && ! freeSlot)
+            continue;
+
+        auto* srcParam = apvts.getParameter (prefix + "Src");
+        auto* dstParam = apvts.getParameter (prefix + "Dst");
+        auto* amtParam = apvts.getParameter (prefix + "Amt");
+
+        srcParam->setValueNotifyingHost (srcParam->convertTo0to1 ((float) sourceIndex));
+        dstParam->setValueNotifyingHost (dstParam->convertTo0to1 ((float) targetIndex));
+
+        if (std::abs (apvts.getRawParameterValue (prefix + "Amt")->load()) < 0.01f)
+            amtParam->setValueNotifyingHost (amtParam->convertTo0to1 (0.5f));
+
+        return;
+    }
+
+    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::InfoIcon,
+                                            "Mod matrix",
+                                            "All 6 matrix slots are in use — clear one first.");
+}
+
+void AstralVegaAudioProcessorEditor::setupRotary (juce::Slider& slider, juce::Label& label,
+                                                  const juce::String& text)
+{
+    slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
+    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 62, 15);
+    addAndMakeVisible (slider);
+
+    label.setText (text, juce::dontSendNotification);
+    label.setJustificationType (juce::Justification::centred);
+    label.attachToComponent (&slider, false);
 }
 
 void AstralVegaAudioProcessorEditor::setupCombo (juce::ComboBox& box, juce::Label& label,
@@ -267,6 +346,28 @@ void AstralVegaAudioProcessorEditor::setupCombo (juce::ComboBox& box, juce::Labe
     label.setText (text, juce::dontSendNotification);
     label.setJustificationType (juce::Justification::centred);
     label.attachToComponent (&box, false);
+}
+
+void AstralVegaAudioProcessorEditor::setupOscRow (OscRowControls& row, const juce::String& idPrefix)
+{
+    setupCombo (row.table, row.tableLabel, "Table",
+                juce::StringArray { "Basic", "PWM", "Spectra", "User" });
+
+    setupRotary (row.pos, row.posLabel, "WT Pos");
+    setupRotary (row.coarse, row.coarseLabel, "Coarse");
+    setupRotary (row.unison, row.unisonLabel, "Unison");
+    setupRotary (row.detune, row.detuneLabel, "Detune");
+    setupRotary (row.spread, row.spreadLabel, "Spread");
+    setupRotary (row.level, row.levelLabel, "Level");
+
+    auto& apvts = processorRef.apvts;
+    row.tableAtt  = std::make_unique<ComboBoxAttachment> (apvts, idPrefix + "Table", row.table);
+    row.posAtt    = std::make_unique<SliderAttachment> (apvts, idPrefix + "Pos", row.pos);
+    row.coarseAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Coarse", row.coarse);
+    row.unisonAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Unison", row.unison);
+    row.detuneAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Detune", row.detune);
+    row.spreadAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Spread", row.spread);
+    row.levelAtt  = std::make_unique<SliderAttachment> (apvts, idPrefix + "Level", row.level);
 }
 
 void AstralVegaAudioProcessorEditor::setupModSlot (ModSlotControls& slot, int slotNumber)
@@ -287,67 +388,59 @@ void AstralVegaAudioProcessorEditor::setupModSlot (ModSlotControls& slot, int sl
     slot.amtAtt = std::make_unique<SliderAttachment> (apvts, prefix + "Amt", slot.amt);
 }
 
-void AstralVegaAudioProcessorEditor::setupRotary (juce::Slider& slider, juce::Label& label,
-                                                  const juce::String& text)
-{
-    slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 62, 16);
-    slider.setColour (juce::Slider::rotarySliderFillColourId, neonMagenta);
-    slider.setColour (juce::Slider::thumbColourId, neonCyan);
-    addAndMakeVisible (slider);
-
-    label.setText (text, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centred);
-    label.attachToComponent (&slider, false);
-}
-
-void AstralVegaAudioProcessorEditor::setupOscRow (OscRowControls& row,
-                                                  const juce::String& idPrefix,
-                                                  const juce::String& name)
-{
-    row.table.addItemList (juce::StringArray { "Basic", "PWM", "Spectra", "User" }, 1);
-    addAndMakeVisible (row.table);
-    row.tableLabel.setText (name, juce::dontSendNotification);
-    row.tableLabel.setJustificationType (juce::Justification::centred);
-    row.tableLabel.attachToComponent (&row.table, false);
-
-    setupRotary (row.pos, row.posLabel, "WT Pos");
-    setupRotary (row.coarse, row.coarseLabel, "Coarse");
-    setupRotary (row.unison, row.unisonLabel, "Unison");
-    setupRotary (row.detune, row.detuneLabel, "Detune");
-    setupRotary (row.spread, row.spreadLabel, "Spread");
-    setupRotary (row.level, row.levelLabel, "Level");
-
-    auto& apvts = processorRef.apvts;
-    row.tableAtt  = std::make_unique<ComboBoxAttachment> (apvts, idPrefix + "Table", row.table);
-    row.posAtt    = std::make_unique<SliderAttachment> (apvts, idPrefix + "Pos", row.pos);
-    row.coarseAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Coarse", row.coarse);
-    row.unisonAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Unison", row.unison);
-    row.detuneAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Detune", row.detune);
-    row.spreadAtt = std::make_unique<SliderAttachment> (apvts, idPrefix + "Spread", row.spread);
-    row.levelAtt  = std::make_unique<SliderAttachment> (apvts, idPrefix + "Level", row.level);
-}
+//==============================================================================
 
 void AstralVegaAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (background);
+    g.setGradientFill (juce::ColourGradient (AstralLookAndFeel::backgroundHi, 0.0f, 0.0f,
+                                             AstralLookAndFeel::background,
+                                             0.0f, (float) getHeight(), false));
+    g.fillAll();
+
+    for (const auto& panel : panels)
+    {
+        const auto area = panel.area.toFloat();
+
+        g.setColour (AstralLookAndFeel::deepPurple.withAlpha (0.35f));
+        g.fillRoundedRectangle (area, 6.0f);
+        g.setColour (AstralLookAndFeel::panelOutline.withAlpha (0.5f));
+        g.drawRoundedRectangle (area.reduced (0.5f), 6.0f, 1.0f);
+
+        g.setColour (AstralLookAndFeel::cyan.withAlpha (0.55f));
+        g.setFont (juce::Font (juce::FontOptions (10.5f, juce::Font::bold)));
+        g.drawText (panel.title, panel.area.reduced (10, 4),
+                    juce::Justification::topLeft);
+    }
 
     auto titleArea = getLocalBounds().removeFromTop (48).toFloat();
-    g.setColour (neonMagenta);
+    g.setColour (AstralLookAndFeel::magenta);
     g.setFont (juce::Font (juce::FontOptions (28.0f, juce::Font::bold)));
     g.drawText ("ASTRAL VEGA", titleArea.withTrimmedLeft (24.0f),
                 juce::Justification::centredLeft);
 
-    g.setColour (neonCyan.withAlpha (0.6f));
+    g.setColour (AstralLookAndFeel::cyan.withAlpha (0.6f));
     g.drawLine (16.0f, titleArea.getBottom(),
                 (float) getWidth() - 16.0f, titleArea.getBottom(), 1.5f);
 }
 
+juce::Rectangle<int> AstralVegaAudioProcessorEditor::addPanel (juce::Rectangle<int> area,
+                                                               const juce::String& title)
+{
+    panels.push_back ({ area, title });
+
+    auto content = area.reduced (8, 4);
+    content.removeFromTop (12);
+    return content;
+}
+
 void AstralVegaAudioProcessorEditor::resized()
 {
+    panels.clear();
+
     auto bounds = getLocalBounds().reduced (16);
 
-    keyboard.setBounds (bounds.removeFromBottom (90));
+    keyboard.setBounds (bounds.removeFromBottom (80));
+    bounds.removeFromBottom (6);
 
     // title strip: name painted on the left, preset bar on the right
     auto titleStrip = bounds.removeFromTop (48);
@@ -362,7 +455,9 @@ void AstralVegaAudioProcessorEditor::resized()
     presetArea.removeFromLeft (10);
     loadTableButton.setBounds (presetArea);
 
-    bounds.removeFromBottom (8);
+    bounds.removeFromTop (6);
+    visualizer.setBounds (bounds.removeFromTop (92));
+    bounds.removeFromTop (8);
 
     // left column: the synth engine; right column: modulation + FX rack
     auto left = bounds.removeFromLeft (juce::roundToInt ((float) bounds.getWidth() * 0.56f));
@@ -370,56 +465,69 @@ void AstralVegaAudioProcessorEditor::resized()
 
     const int leftRowH = left.getHeight() / 5;
 
-    layoutRow (left.removeFromTop (leftRowH),
+    layoutRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "OSC A"),
                { &oscARow.table, &oscARow.pos, &oscARow.coarse, &oscARow.unison,
                  &oscARow.detune, &oscARow.spread, &oscARow.level });
 
-    layoutRow (left.removeFromTop (leftRowH),
+    layoutRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "OSC B"),
                { &oscBRow.table, &oscBRow.pos, &oscBRow.coarse, &oscBRow.unison,
                  &oscBRow.detune, &oscBRow.spread, &oscBRow.level });
 
-    layoutRow (left.removeFromTop (leftRowH),
+    layoutRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "FILTER"),
                { &cutoffSlider, &resonanceSlider, &morphSlider,
                  &driveSlider, &keytrackSlider, &envAmtSlider });
 
-    layoutRow (left.removeFromTop (leftRowH),
+    layoutRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "MIX / AMP ENV"),
                { &subOctBox, &subLevelSlider, &noiseSlider, &attackSlider,
                  &decaySlider, &sustainSlider, &releaseSlider, &gainSlider });
 
-    layoutRow (left,
+    layoutRow (addPanel (left.reduced (0, 2), "PERFORM / PUMP"),
                { &voiceModeBox, &glideSlider, &bendRangeSlider, &pumpOnButton,
                  &pumpSyncButton, &pumpDivBox, &pumpAmountSlider, &pumpRateSlider });
 
-    const int rightRowH = right.getHeight() / 8;
+    const int rightH = right.getHeight();
+    const int unitH = rightH * 11 / 100;
 
-    layoutRow (right.removeFromTop (rightRowH),
+    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "LFO 1"),
                { &lfo1ShapeBox, &lfo1FreeButton, &lfo1SyncButton, &lfo1DivBox, &lfo1RateSlider });
 
-    layoutRow (right.removeFromTop (rightRowH),
+    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "LFO 2"),
                { &lfo2ShapeBox, &lfo2FreeButton, &lfo2SyncButton, &lfo2DivBox, &lfo2RateSlider });
 
-    layoutRow (right.removeFromTop (rightRowH),
+    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "ENV 2"),
                { &env2AttackSlider, &env2DecaySlider, &env2SustainSlider, &env2ReleaseSlider });
 
-    layoutRow (right.removeFromTop (rightRowH),
+    // matrix panel: drag chips strip on top, then two rows of three slots
+    auto matrixContent = addPanel (right.removeFromTop (rightH * 34 / 100).reduced (0, 2),
+                                   "MOD MATRIX  —  drag a chip onto a glowing knob");
+
+    auto chipStrip = matrixContent.removeFromTop (24);
+    const int chipW = chipStrip.getWidth() / 5;
+
+    for (auto* chip : { &chipLFO1, &chipLFO2, &chipEnv2, &chipVel, &chipWheel })
+        chip->setBounds (chipStrip.removeFromLeft (chipW).reduced (4, 0));
+
+    const int matrixRowH = matrixContent.getHeight() / 2;
+
+    layoutRow (matrixContent.removeFromTop (matrixRowH),
                { &modSlots[0].src, &modSlots[0].dst, &modSlots[0].amt,
                  &modSlots[1].src, &modSlots[1].dst, &modSlots[1].amt,
                  &modSlots[2].src, &modSlots[2].dst, &modSlots[2].amt });
 
-    layoutRow (right.removeFromTop (rightRowH),
+    layoutRow (matrixContent,
                { &modSlots[3].src, &modSlots[3].dst, &modSlots[3].amt,
                  &modSlots[4].src, &modSlots[4].dst, &modSlots[4].amt,
                  &modSlots[5].src, &modSlots[5].dst, &modSlots[5].amt });
 
-    layoutRow (right.removeFromTop (rightRowH),
+    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "DIST / CRUSH"),
                { &distOnButton, &distDriveSlider, &distMixSlider,
                  &crushOnButton, &crushBitsSlider, &crushRateSlider });
 
-    layoutRow (right.removeFromTop (rightRowH),
+    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "PHASER / CHORUS"),
                { &phaserOnButton, &phaserRateSlider, &phaserDepthSlider, &phaserMixSlider,
                  &chorusOnButton, &chorusRateSlider, &chorusDepthSlider, &chorusMixSlider });
 
-    layoutRow (right,
+    layoutRow (addPanel (right.reduced (0, 2), "DELAY / REVERB"),
                { &delayOnButton, &delaySyncButton, &delayDivBox,
                  &delayTimeSlider, &delayFBSlider, &delayMixSlider,
                  &reverbOnButton, &reverbSizeSlider, &reverbDampSlider, &reverbMixSlider });

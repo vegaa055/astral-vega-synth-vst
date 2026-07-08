@@ -30,7 +30,9 @@ target_sources(AstralVega PRIVATE
     Source/SynthVoice.cpp
     Source/Wavetable.cpp
     Source/FXChain.cpp
-    Source/PresetManager.cpp)
+    Source/PresetManager.cpp
+    Source/AstralLookAndFeel.cpp
+    Source/Visualizer.cpp)
 
 target_compile_definitions(AstralVega PUBLIC
     JUCE_WEB_BROWSER=0

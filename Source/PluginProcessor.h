@@ -44,6 +44,9 @@ public:
         wavetable slot. Message thread only. Returns an error string, or {}. */
     juce::String loadUserWavetable (const juce::File&);
 
+    /** Pulls mono post-FX samples for the editor's scope/spectrum display. */
+    int readScopeSamples (float* dest, int maxToRead);
+
 private:
     struct OscParamRefs
     {
@@ -157,6 +160,11 @@ private:
     juce::CriticalSection statePathLock;
     juce::String pendingStatePath;                // guarded by statePathLock
     juce::String currentUserTablePath;            // message thread only
+
+    void pushScopeSamples (const juce::AudioBuffer<float>&);
+
+    juce::AbstractFifo scopeFifo { 8192 };
+    std::vector<float> scopeStorage = std::vector<float> (8192, 0.0f);
 
     static constexpr int numVoices = 16;
 

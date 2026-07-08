@@ -58,4 +58,11 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
 - [x] **M7 — Presets**: header preset bar (prev/next/browse/save), 10 factory
       presets defined in code as overrides-on-defaults, user presets as XML in
       `Documents/Astral Vega/Presets`
-- [ ] **M8 — Custom UI**: full skinned interface, oscilloscope + spectrum display
+- [x] **M8 — Custom UI**: full synthwave LookAndFeel (neon glow knobs, LED
+      toggles, section panels), oscilloscope + spectrum analyser (click to
+      toggle, lock-free FIFO from the audio thread), drag-and-drop mod routing
+      (drag source chips onto knobs)
+
+All planned milestones complete. 🎉 Ideas beyond: wavetable display with position
+cursor, per-voice filter env visualisation, MPE support, more factory tables,
+FX rack reordering, resizable UI.
