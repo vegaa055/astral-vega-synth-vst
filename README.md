@@ -63,6 +63,11 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
       toggle, lock-free FIFO from the audio thread), drag-and-drop mod routing
       (drag source chips onto knobs)
 
+- [x] **Post-roadmap — Typing keyboard**: FL Studio-style QWERTY mapping
+      (Z row = base octave, Q row = +1, black keys on S/D/G/H/J and 2/3/5/6/7),
+      octave −/+ buttons beside the on-screen keyboard, FL octave naming
+      (middle C = C5)
+
 All planned milestones complete. 🎉 Ideas beyond: wavetable display with position
 cursor, per-voice filter env visualisation, MPE support, more factory tables,
 FX rack reordering, resizable UI.

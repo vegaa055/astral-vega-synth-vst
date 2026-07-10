@@ -16,6 +16,10 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    bool keyStateChanged (bool isKeyDown) override;
+    void focusLost (FocusChangeType) override;
+    void focusOfChildComponentChanged (FocusChangeType) override;
+
 private:
     using SliderAttachment   = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
@@ -159,6 +163,24 @@ private:
                                       chorusRateAtt, chorusDepthAtt, chorusMixAtt,
                                       delayTimeAtt, delayFBAtt, delayMixAtt,
                                       reverbSizeAtt, reverbDampAtt, reverbMixAtt;
+
+    /** One QWERTY key of the FL-style typing keyboard. */
+    struct TypingKey
+    {
+        int keyCode;
+        int offset;             // semitones above the base octave's C
+        int playingNote = -1;   // note actually sounding, -1 when up
+    };
+
+    void initTypingKeys();
+    void setKeyboardOctave (int newOctave);
+    void releaseAllTypingNotes();
+
+    std::vector<TypingKey> typingKeys;
+    int keyboardOctave = 4;
+
+    juce::TextButton octDownButton { "-" }, octUpButton { "+" };
+    juce::Label octLabel;
 
     juce::MidiKeyboardComponent keyboard;
 

@@ -270,9 +270,107 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     reverbDampAtt  = std::make_unique<SliderAttachment> (apvts, "reverbDamp", reverbDampSlider);
     reverbMixAtt   = std::make_unique<SliderAttachment> (apvts, "reverbMix", reverbMixSlider);
 
+    // --- typing keyboard (FL Studio-style) ---------------------------------
+    setWantsKeyboardFocus (true);
+    initTypingKeys();
+    keyboard.clearKeyMappings();        // the editor handles typing itself
+    keyboard.setOctaveForMiddleC (5);   // FL-style naming: middle C = C5
+
+    addAndMakeVisible (octDownButton);
+    addAndMakeVisible (octUpButton);
+    addAndMakeVisible (octLabel);
+    octLabel.setJustificationType (juce::Justification::centred);
+    setKeyboardOctave (4);
+
+    octDownButton.onClick = [this] { setKeyboardOctave (keyboardOctave - 1); };
+    octUpButton.onClick   = [this] { setKeyboardOctave (keyboardOctave + 1); };
+
     addAndMakeVisible (keyboard);
 
     setSize (1460, 880);
+}
+
+void AstralVegaAudioProcessorEditor::initTypingKeys()
+{
+    // FL Studio layout: Z row = base octave, Q row = one octave up
+    static constexpr struct { char key; int offset; } layout[] = {
+        { 'z', 0 },  { 's', 1 },  { 'x', 2 },  { 'd', 3 },  { 'c', 4 },
+        { 'v', 5 },  { 'g', 6 },  { 'b', 7 },  { 'h', 8 },  { 'n', 9 },
+        { 'j', 10 }, { 'm', 11 }, { ',', 12 }, { 'l', 13 }, { '.', 14 },
+        { ';', 15 }, { '/', 16 },
+
+        { 'q', 12 }, { '2', 13 }, { 'w', 14 }, { '3', 15 }, { 'e', 16 },
+        { 'r', 17 }, { '5', 18 }, { 't', 19 }, { '6', 20 }, { 'y', 21 },
+        { '7', 22 }, { 'u', 23 }, { 'i', 24 }, { '9', 25 }, { 'o', 26 },
+        { '0', 27 }, { 'p', 28 },
+    };
+
+    for (const auto& k : layout)
+        typingKeys.push_back ({ (int) k.key, k.offset, -1 });
+}
+
+void AstralVegaAudioProcessorEditor::setKeyboardOctave (int newOctave)
+{
+    keyboardOctave = juce::jlimit (0, 8, newOctave);
+    octLabel.setText ("C" + juce::String (keyboardOctave), juce::dontSendNotification);
+}
+
+bool AstralVegaAudioProcessorEditor::keyStateChanged (bool)
+{
+    // don't steal keystrokes while the user is typing into a value box
+    if (dynamic_cast<juce::TextEditor*> (juce::Component::getCurrentlyFocusedComponent()) != nullptr)
+        return false;
+
+    bool handled = false;
+
+    for (auto& key : typingKeys)
+    {
+        const bool down = juce::KeyPress::isKeyCurrentlyDown (key.keyCode);
+
+        if (down && key.playingNote < 0)
+        {
+            const int note = 12 * keyboardOctave + key.offset;
+
+            if (note < 128)
+            {
+                processorRef.keyboardState.noteOn (1, note, 0.8f);
+                key.playingNote = note;   // remember the sounding note so an
+                handled = true;           // octave change can't strand it
+            }
+        }
+        else if (! down && key.playingNote >= 0)
+        {
+            processorRef.keyboardState.noteOff (1, key.playingNote, 0.8f);
+            key.playingNote = -1;
+            handled = true;
+        }
+    }
+
+    return handled;
+}
+
+void AstralVegaAudioProcessorEditor::releaseAllTypingNotes()
+{
+    for (auto& key : typingKeys)
+    {
+        if (key.playingNote >= 0)
+        {
+            processorRef.keyboardState.noteOff (1, key.playingNote, 0.0f);
+            key.playingNote = -1;
+        }
+    }
+}
+
+void AstralVegaAudioProcessorEditor::focusLost (FocusChangeType)
+{
+    if (! hasKeyboardFocus (true))
+        releaseAllTypingNotes();
+}
+
+void AstralVegaAudioProcessorEditor::focusOfChildComponentChanged (FocusChangeType)
+{
+    if (! hasKeyboardFocus (true))
+        releaseAllTypingNotes();
 }
 
 AstralVegaAudioProcessorEditor::~AstralVegaAudioProcessorEditor()
@@ -439,7 +537,15 @@ void AstralVegaAudioProcessorEditor::resized()
 
     auto bounds = getLocalBounds().reduced (16);
 
-    keyboard.setBounds (bounds.removeFromBottom (80));
+    // octave strip + keyboard along the bottom
+    auto keyboardArea = bounds.removeFromBottom (80);
+    auto octArea = keyboardArea.removeFromLeft (104).withSizeKeepingCentre (104, 34);
+    octDownButton.setBounds (octArea.removeFromLeft (32));
+    octLabel.setBounds (octArea.removeFromLeft (36));
+    octUpButton.setBounds (octArea);
+    keyboardArea.removeFromLeft (6);
+    keyboard.setBounds (keyboardArea);
+
     bounds.removeFromBottom (6);
 
     // title strip: name painted on the left, preset bar on the right
