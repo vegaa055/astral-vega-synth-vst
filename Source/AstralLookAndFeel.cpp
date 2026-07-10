@@ -1,4 +1,17 @@
 #include "AstralLookAndFeel.h"
+#include "BinaryData.h"
+
+juce::Font AstralLookAndFeel::getTitleFont (float height)
+{
+    static const juce::Typeface::Ptr abnes =
+        juce::Typeface::createSystemTypefaceFor (BinaryData::abnes_ttf,
+                                                 (size_t) BinaryData::abnes_ttfSize);
+
+    if (abnes != nullptr)
+        return juce::Font (juce::FontOptions (abnes).withHeight (height));
+
+    return juce::Font (juce::FontOptions (height, juce::Font::bold));
+}
 
 AstralLookAndFeel::AstralLookAndFeel()
 {
@@ -116,7 +129,7 @@ void AstralLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton&
     g.drawRoundedRectangle (pill, pill.getHeight() * 0.5f, on ? 1.5f : 1.0f);
 
     const auto led = juce::Rectangle<float> (7.0f, 7.0f)
-                         .withCentre ({ pill.getX() + 13.0f, pill.getCentreY() });
+                         .withCentre ({ pill.getX() + 10.0f, pill.getCentreY() });
 
     if (on)
     {
@@ -128,9 +141,9 @@ void AstralLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton&
     g.fillEllipse (led);
 
     g.setColour (on ? textBright : textDim);
-    g.setFont (juce::Font (juce::FontOptions (11.5f, juce::Font::bold)));
+    g.setFont (juce::Font (juce::FontOptions (10.5f, juce::Font::bold)));
     g.drawText (button.getButtonText(),
-                pill.withTrimmedLeft (22.0f).withTrimmedRight (4.0f),
+                pill.withTrimmedLeft (17.0f).withTrimmedRight (3.0f),
                 juce::Justification::centredLeft);
 }
 

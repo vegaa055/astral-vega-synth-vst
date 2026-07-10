@@ -24,6 +24,9 @@ juce_add_plugin(AstralVega
 
 juce_generate_juce_header(AstralVega)
 
+juce_add_binary_data(AstralVegaAssets SOURCES
+    Assets/abnes.ttf)
+
 target_sources(AstralVega PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
@@ -41,6 +44,7 @@ target_compile_definitions(AstralVega PUBLIC
 
 target_link_libraries(AstralVega
     PRIVATE
+        AstralVegaAssets
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

@@ -28,4 +28,7 @@ public:
                            bool shouldDrawButtonAsDown) override;
 
     juce::Font getLabelFont (juce::Label&) override;
+
+    /** The Abnes display face (embedded), used for the title branding. */
+    static juce::Font getTitleFont (float height);
 };

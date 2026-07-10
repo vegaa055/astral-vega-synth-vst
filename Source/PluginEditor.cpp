@@ -5,7 +5,7 @@ namespace
 {
     void layoutRow (juce::Rectangle<int> row, std::initializer_list<juce::Component*> comps)
     {
-        row.removeFromTop (18); // room for attached labels
+        row.removeFromTop (14); // room for attached labels
         const int cellW = row.getWidth() / (int) comps.size();
 
         for (auto* comp : comps)
@@ -148,8 +148,8 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
 
     // --- modulation + FX (right column) ------------------------------------
     const juce::StringArray lfoShapes { "Sine", "Triangle", "Saw Down", "Square", "S&H" };
-    setupCombo (lfo1ShapeBox, lfo1ShapeLabel, "Shape", lfoShapes);
-    setupCombo (lfo2ShapeBox, lfo2ShapeLabel, "Shape", lfoShapes);
+    setupCombo (lfo1ShapeBox, lfo1ShapeLabel, "LFO 1", lfoShapes);
+    setupCombo (lfo2ShapeBox, lfo2ShapeLabel, "LFO 2", lfoShapes);
 
     for (auto* button : { &lfo1SyncButton, &lfo1FreeButton, &lfo2SyncButton, &lfo2FreeButton })
         addAndMakeVisible (*button);
@@ -285,9 +285,15 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     octDownButton.onClick = [this] { setKeyboardOctave (keyboardOctave - 1); };
     octUpButton.onClick   = [this] { setKeyboardOctave (keyboardOctave + 1); };
 
+    // continuous sliders get 2 decimal places; int sliders keep their own format
+    for (auto* child : getChildren())
+        if (auto* slider = dynamic_cast<juce::Slider*> (child))
+            if (slider->getInterval() <= 0.0)
+                slider->setNumDecimalPlacesToDisplay (2);
+
     addAndMakeVisible (keyboard);
 
-    setSize (1460, 880);
+    setSize (1460, 900);
 }
 
 void AstralVegaAudioProcessorEditor::initTypingKeys()
@@ -426,7 +432,7 @@ void AstralVegaAudioProcessorEditor::setupRotary (juce::Slider& slider, juce::La
                                                   const juce::String& text)
 {
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 62, 15);
+    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 56, 13);
     addAndMakeVisible (slider);
 
     label.setText (text, juce::dontSendNotification);
@@ -512,7 +518,7 @@ void AstralVegaAudioProcessorEditor::paint (juce::Graphics& g)
 
     auto titleArea = getLocalBounds().removeFromTop (48).toFloat();
     g.setColour (AstralLookAndFeel::magenta);
-    g.setFont (juce::Font (juce::FontOptions (28.0f, juce::Font::bold)));
+    g.setFont (AstralLookAndFeel::getTitleFont (24.0f));
     g.drawText ("ASTRAL VEGA", titleArea.withTrimmedLeft (24.0f),
                 juce::Justification::centredLeft);
 
@@ -526,8 +532,8 @@ juce::Rectangle<int> AstralVegaAudioProcessorEditor::addPanel (juce::Rectangle<i
 {
     panels.push_back ({ area, title });
 
-    auto content = area.reduced (8, 4);
-    content.removeFromTop (12);
+    auto content = area.reduced (8, 3);
+    content.removeFromTop (10);
     return content;
 }
 
@@ -592,22 +598,20 @@ void AstralVegaAudioProcessorEditor::resized()
                  &pumpSyncButton, &pumpDivBox, &pumpAmountSlider, &pumpRateSlider });
 
     const int rightH = right.getHeight();
-    const int unitH = rightH * 11 / 100;
+    const int unitH = rightH * 14 / 100;
 
-    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "LFO 1"),
-               { &lfo1ShapeBox, &lfo1FreeButton, &lfo1SyncButton, &lfo1DivBox, &lfo1RateSlider });
-
-    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "LFO 2"),
-               { &lfo2ShapeBox, &lfo2FreeButton, &lfo2SyncButton, &lfo2DivBox, &lfo2RateSlider });
+    layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "LFO 1 / LFO 2"),
+               { &lfo1ShapeBox, &lfo1FreeButton, &lfo1SyncButton, &lfo1DivBox, &lfo1RateSlider,
+                 &lfo2ShapeBox, &lfo2FreeButton, &lfo2SyncButton, &lfo2DivBox, &lfo2RateSlider });
 
     layoutRow (addPanel (right.removeFromTop (unitH).reduced (0, 2), "ENV 2"),
                { &env2AttackSlider, &env2DecaySlider, &env2SustainSlider, &env2ReleaseSlider });
 
     // matrix panel: drag chips strip on top, then two rows of three slots
-    auto matrixContent = addPanel (right.removeFromTop (rightH * 34 / 100).reduced (0, 2),
-                                   "MOD MATRIX  —  drag a chip onto a glowing knob");
+    auto matrixContent = addPanel (right.removeFromTop (rightH * 30 / 100).reduced (0, 2),
+                                   "MOD MATRIX - drag a chip onto a glowing knob");
 
-    auto chipStrip = matrixContent.removeFromTop (24);
+    auto chipStrip = matrixContent.removeFromTop (22);
     const int chipW = chipStrip.getWidth() / 5;
 
     for (auto* chip : { &chipLFO1, &chipLFO2, &chipEnv2, &chipVel, &chipWheel })
