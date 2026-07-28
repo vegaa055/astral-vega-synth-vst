@@ -1,7 +1,6 @@
 # Astral Vega
 
-A wavetable-style software synthesizer (VST3 + Standalone) built with C++ and JUCE 8,
-aimed at Synthwave and Hip-hop sound design. Inspired by Serum.
+A wavetable-style software synthesizer (VST3 + Standalone) built with C++ and JUCE 8. Inspired by Serum.
 
 📖 **[User Manual](MANUAL.md)** — every knob explained, plus the sound-design
 guide and patch recipes.
