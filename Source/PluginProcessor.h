@@ -59,11 +59,18 @@ public:
         int numFrames = 0;
         int frameStride = 0;    // samples between frame starts
         int frameLength = 0;    // usable samples per frame
+        int generation = 0;     // bumps when the user table is replaced
 
         bool isValid() const noexcept { return frames != nullptr && numFrames > 0; }
     };
 
     DisplayTable getDisplayTable (int tableIndex) const;
+
+    /** Wavetable position of the newest sounding voice, with modulation
+        applied — what you are actually hearing right now. Returns false when
+        no voice is active, in which case the display should fall back to the
+        parameter value. Any thread. */
+    bool getLivePosition (int oscIndex, float& positionOut) const;
 
 private:
     struct OscParamRefs
@@ -183,6 +190,12 @@ private:
     // read the audio thread's live table (message thread only)
     juce::AudioBuffer<float> userDisplayBuffer;
     int userDisplayFrames = 0;
+    int userTableGeneration = 0;
+
+    void publishLivePositions();
+
+    std::atomic<float> livePosition[2] {};
+    std::atomic<bool> liveVoiceActive { false };
 
     void pushScopeSamples (const juce::AudioBuffer<float>&);
 

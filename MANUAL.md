@@ -91,12 +91,19 @@ octave), so high notes never alias.
 | **Level** | 0–1 (A: 0.8, B: 0) | This oscillator's volume in the voice mix |
 
 **The display**: each oscillator panel has its own wavetable window. The bright
-cyan curve is the exact frame you're hearing at the current WT Pos (interpolated
-between frames, just like the engine); the faint curves behind it are frames
-sampled from across the whole table, so you can see where a sweep will travel.
-The bar underneath is the position cursor, and the readout top-right shows the
-current frame out of the total. Each frame is drawn normalized, so you're
-comparing *shape*, not loudness.
+cyan curve is the exact frame you're hearing (interpolated between frames, just
+like the engine); the faint curves behind it are frames sampled from across the
+whole table, so you can see where a sweep will travel. Each frame is drawn
+normalized, so you're comparing *shape*, not loudness.
+
+While you hold a note the display goes **live**: it follows that voice's
+*modulated* position, so an LFO or Env 2 aimed at WT Pos animates the waveform
+in real time. The cursor bar underneath then shows two marks — a bright one for
+where modulation has pushed the position, and a dim one for the knob itself, so
+you can see how far the modulation is actually travelling. Release the note and
+it settles back to the knob position. With several notes down it follows the
+most recently played one, and the readout top-right shows the current frame out
+of the total.
 
 **The factory tables**
 

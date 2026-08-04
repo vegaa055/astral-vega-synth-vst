@@ -72,8 +72,9 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
 
 - [x] **Post-roadmap — Wavetable display**: per-oscillator wavetable window
       showing the interpolated current frame over ghosted frames from across
-      the table, with a position cursor and frame readout
+      the table, with a frame readout and a live position cursor that follows
+      the newest voice's modulated position (dim tick marks the knob value)
 
 All planned milestones complete. 🎉 Ideas beyond: per-voice filter env
-visualisation, live (modulated) position cursor, MPE support, more factory
-tables, FX rack reordering, resizable UI.
+visualisation, MPE support, more factory tables, FX rack reordering,
+resizable UI.

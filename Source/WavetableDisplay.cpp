@@ -18,10 +18,12 @@ namespace
     }
 }
 
-WavetableDisplay::WavetableDisplay (AstralVegaAudioProcessor& p, const juce::String& oscIdPrefix)
+WavetableDisplay::WavetableDisplay (AstralVegaAudioProcessor& p,
+                                    const juce::String& oscIdPrefix, int oscIndexIn)
     : processor (p),
       tableParamId (oscIdPrefix + "Table"),
-      posParamId (oscIdPrefix + "Pos")
+      posParamId (oscIdPrefix + "Pos"),
+      oscIndex (oscIndexIn)
 {
     setInterceptsMouseClicks (false, false);
     startTimerHz (30);
@@ -30,13 +32,23 @@ WavetableDisplay::WavetableDisplay (AstralVegaAudioProcessor& p, const juce::Str
 void WavetableDisplay::timerCallback()
 {
     const int tableIndex = (int) processor.apvts.getRawParameterValue (tableParamId)->load();
-    const float position = processor.apvts.getRawParameterValue (posParamId)->load();
+    const float basePosition = processor.apvts.getRawParameterValue (posParamId)->load();
 
-    if (tableIndex == lastTableIndex && juce::approximatelyEqual (position, lastPosition))
+    float shown = basePosition;
+    const bool live = processor.getLivePosition (oscIndex, shown);
+
+    const bool changed = tableIndex != lastTableIndex
+                      || live != lastLive
+                      || std::abs (shown - lastShownPosition) > 0.0008f
+                      || std::abs (basePosition - lastBasePosition) > 0.0008f;
+
+    if (! changed)
         return;
 
     lastTableIndex = tableIndex;
-    lastPosition = position;
+    lastBasePosition = basePosition;
+    lastShownPosition = shown;
+    lastLive = live;
     repaint();
 }
 
@@ -88,6 +100,27 @@ void WavetableDisplay::buildFramePath (juce::Path& path, const DisplayTable& tab
     }
 }
 
+void WavetableDisplay::rebuildGhosts (const DisplayTable& table, juce::Rectangle<float> area)
+{
+    for (int k = 0; k < numGhostFrames; ++k)
+    {
+        ghostPaths[k].clear();
+
+        if (table.numFrames > 1)
+        {
+            const float ghostPos = (float) k / (float) (numGhostFrames - 1)
+                                 * (float) (table.numFrames - 1);
+
+            buildFramePath (ghostPaths[k], table, ghostPos, area);
+        }
+    }
+
+    ghostTableIndex = lastTableIndex;
+    ghostGeneration = table.generation;
+    ghostNumFrames = table.numFrames;
+    ghostArea = area;
+}
+
 void WavetableDisplay::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
@@ -108,54 +141,64 @@ void WavetableDisplay::paint (juce::Graphics& g)
         return;
     }
 
-    const float position = juce::jlimit (0.0f, 1.0f,
-                                         processor.apvts.getRawParameterValue (posParamId)->load());
-    const float framePos = position * (float) (table.numFrames - 1);
+    const float basePosition = juce::jlimit (0.0f, 1.0f,
+                                             processor.apvts.getRawParameterValue (posParamId)->load());
+    float shown = basePosition;
+    const bool live = processor.getLivePosition (oscIndex, shown);
+    shown = juce::jlimit (0.0f, 1.0f, shown);
 
     auto content = bounds.reduced (5.0f);
     auto cursorArea = content.removeFromBottom (10.0f);
     content.removeFromBottom (2.0f);
 
-    // ghosts of frames from across the table, so you can see where a sweep goes
-    if (table.numFrames > 1)
+    if (tableIndex != ghostTableIndex || table.generation != ghostGeneration
+        || table.numFrames != ghostNumFrames || content != ghostArea)
     {
-        g.setColour (AstralLookAndFeel::cyan.withAlpha (0.12f));
-
-        for (int k = 0; k < numGhostFrames; ++k)
-        {
-            const float ghostPos = (float) k / (float) (numGhostFrames - 1)
-                                 * (float) (table.numFrames - 1);
-
-            juce::Path ghost;
-            buildFramePath (ghost, table, ghostPos, content);
-            g.strokePath (ghost, juce::PathStrokeType (1.0f));
-        }
+        lastTableIndex = tableIndex;
+        rebuildGhosts (table, content);
     }
 
+    g.setColour (AstralLookAndFeel::cyan.withAlpha (0.12f));
+
+    for (const auto& ghost : ghostPaths)
+        if (! ghost.isEmpty())
+            g.strokePath (ghost, juce::PathStrokeType (1.0f));
+
     juce::Path wave;
-    buildFramePath (wave, table, framePos, content);
+    buildFramePath (wave, table, shown * (float) (table.numFrames - 1), content);
 
     g.setColour (AstralLookAndFeel::cyan.withAlpha (0.22f));
     g.strokePath (wave, juce::PathStrokeType (3.0f));
     g.setColour (AstralLookAndFeel::cyan);
     g.strokePath (wave, juce::PathStrokeType (1.3f));
 
-    // position cursor
+    // cursor track
     auto track = cursorArea.withSizeKeepingCentre (cursorArea.getWidth(), 3.0f);
     g.setColour (AstralLookAndFeel::deepPurple.brighter (0.35f));
     g.fillRoundedRectangle (track, 1.5f);
 
-    const float markerX = track.getX() + position * track.getWidth();
-    const auto marker = juce::Rectangle<float> (3.0f, cursorArea.getHeight())
-                            .withCentre ({ markerX, cursorArea.getCentreY() });
+    const auto markerAt = [&] (float pos01)
+    {
+        return juce::Rectangle<float> (3.0f, cursorArea.getHeight())
+                   .withCentre ({ track.getX() + pos01 * track.getWidth(), cursorArea.getCentreY() });
+    };
 
-    g.setColour (AstralLookAndFeel::magenta.withAlpha (0.45f));
+    // dim tick for the knob position, so you can see how far modulation moved
+    if (live && std::abs (shown - basePosition) > 0.002f)
+    {
+        g.setColour (AstralLookAndFeel::magenta.withAlpha (0.35f));
+        g.fillRoundedRectangle (markerAt (basePosition), 1.5f);
+    }
+
+    const auto marker = markerAt (shown);
+    g.setColour (AstralLookAndFeel::magenta.withAlpha (live ? 0.55f : 0.45f));
     g.fillRoundedRectangle (marker.expanded (2.0f, 1.0f), 2.0f);
     g.setColour (AstralLookAndFeel::magenta);
     g.fillRoundedRectangle (marker, 1.5f);
 
-    g.setColour (AstralLookAndFeel::textDim.withAlpha (0.7f));
+    g.setColour (AstralLookAndFeel::textDim.withAlpha (live ? 0.95f : 0.7f));
     g.setFont (juce::Font (juce::FontOptions (9.0f)));
-    g.drawText (juce::String (framePos + 1.0f, 1) + " / " + juce::String (table.numFrames),
+    g.drawText (juce::String (shown * (float) (table.numFrames - 1) + 1.0f, 1)
+                    + " / " + juce::String (table.numFrames),
                 bounds.reduced (7.0f, 4.0f), juce::Justification::topRight);
 }

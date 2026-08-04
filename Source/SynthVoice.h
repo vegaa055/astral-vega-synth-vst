@@ -87,6 +87,13 @@ public:
         stopNote is ignored and startNote only retargets the pitch. */
     void setLegatoPending() noexcept { legatoPending = true; }
 
+    /** This voice's wavetable position as actually sounding — modulation
+        applied and smoothing followed — for the editor's display. */
+    float getDisplayPosition (int oscIndex) const noexcept
+    {
+        return (oscIndex == 0 ? oscA : oscB).position.getCurrentValue();
+    }
+
     void prepare (double sampleRate, int samplesPerBlock, int numOutputChannels);
     void setParameters (const BlockParams&);
 

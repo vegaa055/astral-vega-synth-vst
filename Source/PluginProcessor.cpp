@@ -131,6 +131,7 @@ juce::String AstralVegaAudioProcessor::loadUserWavetable (const juce::File& file
 
     userDisplayBuffer.makeCopyOf (data);
     userDisplayFrames = numFrames;
+    ++userTableGeneration;
 
     // clean up a table the audio thread retired earlier, then post the new one
     delete retiredUserTable.exchange (nullptr);
@@ -161,9 +162,45 @@ AstralVegaAudioProcessor::getDisplayTable (int tableIndex) const
         dt.numFrames = userDisplayFrames;
         dt.frameStride = Wavetable::frameSize;
         dt.frameLength = Wavetable::frameSize;
+        dt.generation = userTableGeneration;
     }
 
     return dt;
+}
+
+void AstralVegaAudioProcessor::publishLivePositions()
+{
+    const SynthVoice* newest = nullptr;
+
+    for (int i = 0; i < synth.getNumVoices(); ++i)
+    {
+        const auto* voice = dynamic_cast<const SynthVoice*> (synth.getVoice (i));
+
+        if (voice == nullptr || ! voice->isVoiceActive())
+            continue;
+
+        if (newest == nullptr || newest->wasStartedBefore (*voice))
+            newest = voice;
+    }
+
+    if (newest == nullptr)
+    {
+        liveVoiceActive.store (false);
+        return;
+    }
+
+    livePosition[0].store (newest->getDisplayPosition (0));
+    livePosition[1].store (newest->getDisplayPosition (1));
+    liveVoiceActive.store (true);
+}
+
+bool AstralVegaAudioProcessor::getLivePosition (int oscIndex, float& positionOut) const
+{
+    if (! liveVoiceActive.load())
+        return false;
+
+    positionOut = livePosition[(size_t) juce::jlimit (0, 1, oscIndex)].load();
+    return true;
 }
 
 void AstralVegaAudioProcessor::pushScopeSamples (const juce::AudioBuffer<float>& buffer)
@@ -650,6 +687,8 @@ void AstralVegaAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             voice->setParameters (blockParams);
 
     synth.renderNextBlock (buffer, midiMessages, 0, buffer.getNumSamples());
+
+    publishLivePositions();
 
     fxChain.setParams (makeFXParams());
     fxChain.process (buffer);

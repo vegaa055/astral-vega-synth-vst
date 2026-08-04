@@ -23,7 +23,7 @@ namespace
 AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p),
       visualizer (p),
-      wtDisplayA (p, "oscA"), wtDisplayB (p, "oscB"),
+      wtDisplayA (p, "oscA", 0), wtDisplayB (p, "oscB", 1),
       keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     setLookAndFeel (&lookAndFeel);
