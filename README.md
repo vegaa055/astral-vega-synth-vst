@@ -70,6 +70,10 @@ Outputs land in `build/AstralVega_artefacts/Release/`:
       octave −/+ buttons beside the on-screen keyboard, FL octave naming
       (middle C = C5)
 
-All planned milestones complete. 🎉 Ideas beyond: wavetable display with position
-cursor, per-voice filter env visualisation, MPE support, more factory tables,
-FX rack reordering, resizable UI.
+- [x] **Post-roadmap — Wavetable display**: per-oscillator wavetable window
+      showing the interpolated current frame over ghosted frames from across
+      the table, with a position cursor and frame readout
+
+All planned milestones complete. 🎉 Ideas beyond: per-voice filter env
+visualisation, live (modulated) position cursor, MPE support, more factory
+tables, FX rack reordering, resizable UI.

@@ -47,6 +47,24 @@ public:
     /** Pulls mono post-FX samples for the editor's scope/spectrum display. */
     int readScopeSamples (float* dest, int maxToRead);
 
+    /** Read-only view of a wavetable's frames for the editor's display.
+
+        Factory tables are immutable for the processor's lifetime, and the
+        user table's display copy is owned by the message thread, so this
+        never races with the audio thread's table swapping. Message thread only.
+    */
+    struct DisplayTable
+    {
+        const float* frames = nullptr;
+        int numFrames = 0;
+        int frameStride = 0;    // samples between frame starts
+        int frameLength = 0;    // usable samples per frame
+
+        bool isValid() const noexcept { return frames != nullptr && numFrames > 0; }
+    };
+
+    DisplayTable getDisplayTable (int tableIndex) const;
+
 private:
     struct OscParamRefs
     {
@@ -160,6 +178,11 @@ private:
     juce::CriticalSection statePathLock;
     juce::String pendingStatePath;                // guarded by statePathLock
     juce::String currentUserTablePath;            // message thread only
+
+    // raw imported frames kept for the editor's display, so it never has to
+    // read the audio thread's live table (message thread only)
+    juce::AudioBuffer<float> userDisplayBuffer;
+    int userDisplayFrames = 0;
 
     void pushScopeSamples (const juce::AudioBuffer<float>&);
 

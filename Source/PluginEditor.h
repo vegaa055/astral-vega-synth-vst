@@ -5,6 +5,7 @@
 #include "AstralLookAndFeel.h"
 #include "ModDragDrop.h"
 #include "Visualizer.h"
+#include "WavetableDisplay.h"
 
 class AstralVegaAudioProcessorEditor : public juce::AudioProcessorEditor,
                                        public juce::DragAndDropContainer
@@ -75,6 +76,7 @@ private:
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     Visualizer visualizer;
+    WavetableDisplay wtDisplayA, wtDisplayB;
 
     OscRowControls oscARow, oscBRow;
 

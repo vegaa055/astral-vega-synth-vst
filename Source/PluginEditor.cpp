@@ -13,7 +13,7 @@ namespace
             auto cell = row.removeFromLeft (cellW);
 
             if (dynamic_cast<juce::ComboBox*> (comp) != nullptr)
-                comp->setBounds (cell.withSizeKeepingCentre (juce::jmax (56, cellW - 24), 26));
+                comp->setBounds (cell.withSizeKeepingCentre (juce::jmax (56, cellW - 16), 26));
             else
                 comp->setBounds (cell.reduced (4));
         }
@@ -23,6 +23,7 @@ namespace
 AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioProcessor& p)
     : AudioProcessorEditor (&p), processorRef (p),
       visualizer (p),
+      wtDisplayA (p, "oscA"), wtDisplayB (p, "oscB"),
       keyboard (p.keyboardState, juce::MidiKeyboardComponent::horizontalKeyboard)
 {
     setLookAndFeel (&lookAndFeel);
@@ -111,6 +112,9 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     addAndMakeVisible (visualizer);
 
     // --- synth engine (left column) ---------------------------------------
+    addAndMakeVisible (wtDisplayA);
+    addAndMakeVisible (wtDisplayB);
+
     setupOscRow (oscARow, "oscA");
     setupOscRow (oscBRow, "oscB");
     oscARow.pos.setModTarget (SynthVoice::tgtOscAPos);
@@ -285,11 +289,28 @@ AstralVegaAudioProcessorEditor::AstralVegaAudioProcessorEditor (AstralVegaAudioP
     octDownButton.onClick = [this] { setKeyboardOctave (keyboardOctave - 1); };
     octUpButton.onClick   = [this] { setKeyboardOctave (keyboardOctave + 1); };
 
-    // continuous sliders get 2 decimal places; int sliders keep their own format
+    // Readable value boxes. This has to come after the attachments are made:
+    // SliderAttachment installs its own textFromValueFunction, which would
+    // otherwise win and print every value to 7 decimal places.
     for (auto* child : getChildren())
-        if (auto* slider = dynamic_cast<juce::Slider*> (child))
-            if (slider->getInterval() <= 0.0)
-                slider->setNumDecimalPlacesToDisplay (2);
+    {
+        auto* slider = dynamic_cast<juce::Slider*> (child);
+
+        if (slider == nullptr || slider->getInterval() > 0.0)
+            continue;   // stepped sliders already read as whole numbers
+
+        slider->textFromValueFunction = [] (double v)
+        {
+            const double mag = std::abs (v);
+
+            if (mag >= 100.0) return juce::String (juce::roundToInt (v));
+            if (mag >= 10.0)  return juce::String (v, 1);
+
+            return juce::String (v, 2);
+        };
+
+        slider->updateText();
+    }
 
     addAndMakeVisible (keyboard);
 
@@ -577,13 +598,23 @@ void AstralVegaAudioProcessorEditor::resized()
 
     const int leftRowH = left.getHeight() / 5;
 
-    layoutRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "OSC A"),
-               { &oscARow.table, &oscARow.pos, &oscARow.coarse, &oscARow.unison,
-                 &oscARow.detune, &oscARow.spread, &oscARow.level });
+    // each osc panel carries its wavetable display on the left; the knobs are
+    // height-limited, so the narrower cells don't shrink them
+    const auto layoutOscRow = [this] (juce::Rectangle<int> content,
+                                      WavetableDisplay& display, OscRowControls& row)
+    {
+        display.setBounds (content.removeFromLeft (168).reduced (2, 1));
+        content.removeFromLeft (6);
 
-    layoutRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "OSC B"),
-               { &oscBRow.table, &oscBRow.pos, &oscBRow.coarse, &oscBRow.unison,
-                 &oscBRow.detune, &oscBRow.spread, &oscBRow.level });
+        layoutRow (content, { &row.table, &row.pos, &row.coarse, &row.unison,
+                              &row.detune, &row.spread, &row.level });
+    };
+
+    layoutOscRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "OSC A"),
+                  wtDisplayA, oscARow);
+
+    layoutOscRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "OSC B"),
+                  wtDisplayB, oscBRow);
 
     layoutRow (addPanel (left.removeFromTop (leftRowH).reduced (0, 2), "FILTER"),
                { &cutoffSlider, &resonanceSlider, &morphSlider,

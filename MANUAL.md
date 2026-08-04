@@ -90,6 +90,14 @@ octave), so high notes never alias.
 | **Spread** | 0–1 (0.5) | Fans the unison copies across the stereo field |
 | **Level** | 0–1 (A: 0.8, B: 0) | This oscillator's volume in the voice mix |
 
+**The display**: each oscillator panel has its own wavetable window. The bright
+cyan curve is the exact frame you're hearing at the current WT Pos (interpolated
+between frames, just like the engine); the faint curves behind it are frames
+sampled from across the whole table, so you can see where a sweep will travel.
+The bar underneath is the position cursor, and the readout top-right shows the
+current frame out of the total. Each frame is drawn normalized, so you're
+comparing *shape*, not loudness.
+
 **The factory tables**
 
 - **Basic** — sine → triangle → saw → square. Pos ≈ 0.66 is the classic saw.

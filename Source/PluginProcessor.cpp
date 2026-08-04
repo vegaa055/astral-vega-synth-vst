@@ -129,6 +129,9 @@ juce::String AstralVegaAudioProcessor::loadUserWavetable (const juce::File& file
     auto newTable = std::make_unique<Wavetable> (file.getFileNameWithoutExtension(),
                                                  data.getReadPointer (0), numFrames);
 
+    userDisplayBuffer.makeCopyOf (data);
+    userDisplayFrames = numFrames;
+
     // clean up a table the audio thread retired earlier, then post the new one
     delete retiredUserTable.exchange (nullptr);
     delete pendingUserTable.exchange (newTable.release());
@@ -137,6 +140,30 @@ juce::String AstralVegaAudioProcessor::loadUserWavetable (const juce::File& file
     apvts.state.setProperty ("userTablePath", currentUserTablePath, nullptr);
 
     return {};
+}
+
+AstralVegaAudioProcessor::DisplayTable
+AstralVegaAudioProcessor::getDisplayTable (int tableIndex) const
+{
+    DisplayTable dt;
+
+    if (juce::isPositiveAndBelow (tableIndex, (int) wavetables.size()))
+    {
+        const auto& table = wavetables[(size_t) tableIndex];
+        dt.frames = table.frameData (0, 0);      // full-bandwidth mip
+        dt.numFrames = table.numFrames;
+        dt.frameStride = Wavetable::frameSize + 1;   // frames carry a guard sample
+        dt.frameLength = Wavetable::frameSize;
+    }
+    else if (userDisplayFrames > 0)
+    {
+        dt.frames = userDisplayBuffer.getReadPointer (0);
+        dt.numFrames = userDisplayFrames;
+        dt.frameStride = Wavetable::frameSize;
+        dt.frameLength = Wavetable::frameSize;
+    }
+
+    return dt;
 }
 
 void AstralVegaAudioProcessor::pushScopeSamples (const juce::AudioBuffer<float>& buffer)
